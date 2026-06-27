@@ -8,6 +8,7 @@
     "preview": "node scripts/preview.js"
   },
   "dependencies": {
+    "@bybas/weather-icons": "^2.0.0",
     "@fontsource/inter": "^5.2.8",
     "@resvg/resvg-js": "^2.6.2",
     "playwright-core": "^1.61.1",

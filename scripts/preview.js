@@ -11,11 +11,14 @@ import { renderTree, W, H } from "../lib/dashboard.js";
 import { sampleData } from "../lib/sampleData.js";
 import { dither } from "../lib/dither.js";
 
-const FONT_DIR = "/usr/share/fonts/truetype/dejavu";
-const fonts = [
-  { name: "DejaVu Sans", weight: 400, style: "normal", data: fs.readFileSync(path.join(FONT_DIR, "DejaVuSans.ttf")) },
-  { name: "DejaVu Sans", weight: 700, style: "normal", data: fs.readFileSync(path.join(FONT_DIR, "DejaVuSans-Bold.ttf")) },
-];
+const INTER_DIR = "node_modules/@fontsource/inter/files";
+const interFile = (w) => path.resolve(`${INTER_DIR}/inter-latin-${w}-normal.woff`);
+const fonts = [400, 500, 600, 700].map((weight) => ({
+  name: "Inter",
+  weight,
+  style: "normal",
+  data: fs.readFileSync(interFile(weight)),
+}));
 
 const outDir = path.resolve("out");
 fs.mkdirSync(outDir, { recursive: true });
@@ -24,7 +27,10 @@ console.log("→ satori: building SVG…");
 const svg = await satori(renderTree(sampleData), { width: W, height: H, fonts });
 
 console.log("→ resvg: rasterizing…");
-const resvg = new Resvg(svg, { background: "#FFFFFF", font: { loadSystemFonts: false } });
+const resvg = new Resvg(svg, {
+  background: "#FFFFFF",
+  font: { loadSystemFonts: true, defaultFontFamily: "Liberation Sans" },
+});
 const rendered = resvg.render();
 const pngBuf = rendered.asPng();
 fs.writeFileSync(path.join(outDir, "preview.png"), pngBuf);

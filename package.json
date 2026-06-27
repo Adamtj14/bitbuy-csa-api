@@ -9,7 +9,9 @@
   },
   "dependencies": {
     "@bybas/weather-icons": "^2.0.0",
+    "@fontsource/ibm-plex-mono": "^5.2.7",
     "@fontsource/inter": "^5.2.8",
+    "@fontsource/playfair-display": "^5.2.8",
     "@resvg/resvg-js": "^2.6.2",
     "playwright-core": "^1.61.1",
     "pngjs": "^7.0.0",

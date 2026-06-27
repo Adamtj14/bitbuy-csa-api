@@ -10,6 +10,7 @@
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
     "@resvg/resvg-js": "^2.6.2",
+    "playwright-core": "^1.61.1",
     "pngjs": "^7.0.0",
     "satori": "^0.12.1"
   }

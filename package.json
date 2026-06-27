@@ -1,0 +1,15 @@
+{
+  "name": "bitbuy-csa-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Family e-ink dashboard renderer + APIs",
+  "scripts": {
+    "preview": "node scripts/preview.js"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "pngjs": "^7.0.0",
+    "satori": "^0.12.1"
+  }
+}

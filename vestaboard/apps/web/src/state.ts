@@ -1,10 +1,14 @@
-import { blankGrid, BoardConfig, MIN_FREQUENCY_SECONDS, Slide } from '@vestaboard/core';
+import { blankGrid, BoardConfig, BoardModel, MIN_FREQUENCY_SECONDS, Slide } from '@vestaboard/core';
 
 export function newId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
-export function newSlide(type: Slide['config']['type'], order: number): Slide {
+export function newSlide(
+  type: Slide['config']['type'],
+  order: number,
+  model: BoardModel = 'flagship',
+): Slide {
   const base = { id: newId(), enabled: true, order };
   switch (type) {
     case 'clock':
@@ -24,7 +28,7 @@ export function newSlide(type: Slide['config']['type'], order: number): Slide {
         },
       };
     case 'painter':
-      return { ...base, name: 'Painter', config: { type: 'painter', grid: blankGrid() } };
+      return { ...base, name: 'Painter', config: { type: 'painter', grid: blankGrid(model) } };
     case 'weather':
       return {
         ...base,

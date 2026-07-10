@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BoardConfig,
+  BoardModel,
   MIN_FREQUENCY_SECONDS,
   RenderContext,
   render,
@@ -33,6 +34,7 @@ function useNow(): Date {
 
 /** Sample data so every preview renders offline; the agent fetches live. */
 function usePreviewContext(config: BoardConfig | null, now: Date): RenderContext {
+  const model = config?.boardModel ?? 'flagship';
   const [quotes, setQuotes] = useState<RenderContext['quotes']>([]);
   const specs = useMemo(
     () =>
@@ -56,7 +58,7 @@ function usePreviewContext(config: BoardConfig | null, now: Date): RenderContext
     () => (['nhl', 'nba', 'mlb', 'nfl'] as const).flatMap((l) => mockGames(l)),
     [],
   );
-  return { now, quotes, weather: MOCK_WEATHER, news: MOCK_NEWS, games };
+  return { now, model, quotes, weather: MOCK_WEATHER, news: MOCK_NEWS, games };
 }
 
 type SaveState = 'saved' | 'saving' | 'error';
@@ -138,7 +140,10 @@ export default function App() {
   };
 
   const addSlide = (type: Slide['config']['type']) => {
-    const slide = { ...newSlide(type, slides.length + 1), createdBy: me.id };
+    const slide = {
+      ...newSlide(type, slides.length + 1, config.boardModel ?? 'flagship'),
+      createdBy: me.id,
+    };
     if (isAdmin) {
       adminUpdate((c) => ({ ...c, slides: [...c.slides, slide] }));
       setSelectedId(slide.id);
@@ -244,7 +249,25 @@ export default function App() {
       <div className="columns">
         <aside>
           <section className="panel">
-            <h2>Rotation</h2>
+            <h2>Board</h2>
+            <label className="field">
+              <span>Model</span>
+              <select
+                disabled={!isAdmin}
+                value={config.boardModel ?? 'flagship'}
+                onChange={(e) =>
+                  adminUpdate((c) => ({ ...c, boardModel: e.target.value as BoardModel }))
+                }
+              >
+                <option value="flagship">Vestaboard (6 x 22)</option>
+                <option value="note">Vestaboard Note (3 x 15)</option>
+              </select>
+            </label>
+            <p className="hint">
+              Previews, the painter and the agent all render for this model. Painter
+              slides drawn for one model show blank on the other.
+            </p>
+            <h2 style={{ marginTop: 16 }}>Rotation</h2>
             <label className="field">
               <span>Seconds per slide</span>
               <input

@@ -1,13 +1,18 @@
-import { blankGrid, cloneGrid, Grid, isGrid } from '../grid.js';
+import { blankGrid, BoardModel, cloneGrid, Grid, isGrid } from '../grid.js';
 import { isValidCode, BLANK } from '../chars.js';
 import type { PainterSlideConfig } from '../types.js';
 
 /**
- * Painter slides store the literal grid. Rendering just sanitizes:
- * wrong shapes become a blank board, invalid codes become blanks.
+ * Painter slides store the literal grid. Rendering sanitizes: a grid
+ * whose shape doesn't match the target board (e.g. painted for the
+ * flagship but shown on a Note) becomes a blank board, and invalid
+ * codes become blanks.
  */
-export function renderPainter(config: PainterSlideConfig): Grid {
-  if (!isGrid(config.grid)) return blankGrid();
+export function renderPainter(
+  config: PainterSlideConfig,
+  model: BoardModel = 'flagship',
+): Grid {
+  if (!isGrid(config.grid, model)) return blankGrid(model);
   const grid = cloneGrid(config.grid);
   for (const row of grid) {
     for (let c = 0; c < row.length; c++) {

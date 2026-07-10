@@ -1,5 +1,5 @@
 import { COLOR, ColorName } from '../chars.js';
-import { blankGrid, COLS, Grid } from '../grid.js';
+import { blankGrid, BoardModel, dimsOf, Grid } from '../grid.js';
 import { encodeLine, layoutText } from '../text.js';
 import type { ClockSlideConfig } from '../types.js';
 
@@ -61,17 +61,32 @@ const DIGIT_FONT: Record<string, number[]> = {
 
 const GLYPH_WIDTH: Record<string, number> = { ':': 1 };
 
-/** Time as 5-row block digits (rows 0-4), AM/PM on the bottom row. */
-function renderBigDigital(parts: TimeParts, hour12: boolean, color: ColorName): Grid {
-  const grid = blankGrid();
-  const chip = COLOR[color];
+/**
+ * Time as 5-row block digits with AM/PM on the bottom row (needs the
+ * flagship's 6 rows; the Note falls back to big centered text).
+ */
+function renderBigDigital(
+  parts: TimeParts,
+  hour12: boolean,
+  color: ColorName,
+  model: BoardModel,
+): Grid {
+  const { rows, cols } = dimsOf(model);
   const h = hour12 ? (parts.hour24 % 12 === 0 ? 12 : parts.hour24 % 12) : parts.hour24;
   const hh = hour12 ? String(h) : String(h).padStart(2, '0');
   const text = `${hh}:${String(parts.minute).padStart(2, '0')}`;
 
+  if (rows < 6) {
+    // Block digits do not fit on the Note; show the time centered.
+    const suffix = hour12 ? ` ${parts.hour24 < 12 ? 'AM' : 'PM'}` : '';
+    return layoutText(`${text}${suffix}`, { align: 'center', valign: 'middle', model });
+  }
+
+  const grid = blankGrid(model);
+  const chip = COLOR[color];
   const widths = [...text].map((ch) => GLYPH_WIDTH[ch] ?? 3);
   const total = widths.reduce((a, b) => a + b, 0) + (text.length - 1);
-  let col = Math.max(0, Math.floor((COLS - total) / 2));
+  let col = Math.max(0, Math.floor((cols - total) / 2));
 
   for (const [i, ch] of [...text].entries()) {
     const glyph = DIGIT_FONT[ch];
@@ -82,7 +97,7 @@ function renderBigDigital(parts: TimeParts, hour12: boolean, color: ColorName): 
         for (let c = 0; c < width; c++) {
           if ((bits >> (width - 1 - c)) & 1) {
             const row = grid[r];
-            if (row && col + c < COLS) row[col + c] = chip;
+            if (row && col + c < cols) row[col + c] = chip;
           }
         }
       }
@@ -90,19 +105,25 @@ function renderBigDigital(parts: TimeParts, hour12: boolean, color: ColorName): 
     col += width + 1;
   }
   if (hour12) {
-    grid[5] = encodeLine(parts.hour24 < 12 ? 'AM' : 'PM', 'center');
+    grid[5] = encodeLine(parts.hour24 < 12 ? 'AM' : 'PM', 'center', cols);
   }
   return grid;
 }
 
-function renderDigitalDate(parts: TimeParts, hour12: boolean): Grid {
-  const grid = blankGrid();
-  grid[1] = encodeLine(formatTime(parts.hour24, parts.minute, hour12), 'center');
-  grid[3] = encodeLine(parts.weekday.toUpperCase(), 'center');
-  grid[4] = encodeLine(
-    `${parts.month.toUpperCase()} ${parts.day} ${parts.year}`,
-    'center',
-  );
+function renderDigitalDate(parts: TimeParts, hour12: boolean, model: BoardModel): Grid {
+  const { rows, cols } = dimsOf(model);
+  const grid = blankGrid(model);
+  const time = formatTime(parts.hour24, parts.minute, hour12);
+  const date = `${parts.month.toUpperCase()} ${parts.day} ${parts.year}`;
+  if (rows < 6) {
+    grid[0] = encodeLine(time, 'center', cols);
+    grid[1] = encodeLine(parts.weekday.toUpperCase(), 'center', cols);
+    grid[2] = encodeLine(date, 'center', cols);
+  } else {
+    grid[1] = encodeLine(time, 'center', cols);
+    grid[3] = encodeLine(parts.weekday.toUpperCase(), 'center', cols);
+    grid[4] = encodeLine(date, 'center', cols);
+  }
   return grid;
 }
 
@@ -112,7 +133,7 @@ const HOUR_WORDS = [
 ];
 
 /** "IT IS HALF PAST TEN" — minutes rounded to the nearest five. */
-function renderWordClock(parts: TimeParts): Grid {
+function renderWordClock(parts: TimeParts, model: BoardModel): Grid {
   const rounded = Math.round(parts.minute / 5) * 5;
   let hour = parts.hour24;
   let phrase: string;
@@ -130,7 +151,7 @@ function renderWordClock(parts: TimeParts): Grid {
   } else {
     phrase = `${minuteWords[rounded]} ${HOUR_WORDS[hour % 12]}`;
   }
-  return layoutText(`IT IS ${phrase}`, { align: 'center', valign: 'middle' });
+  return layoutText(`IT IS ${phrase}`, { align: 'center', valign: 'middle', model });
 }
 
 export interface ClockRenderOptions {
@@ -142,15 +163,16 @@ export function renderClock(
   config: ClockSlideConfig,
   now: Date,
   options: ClockRenderOptions = {},
+  model: BoardModel = 'flagship',
 ): Grid {
   const parts = getTimeParts(now, config.timeZone);
   const hour12 = config.hour12 ?? true;
   switch (config.style) {
     case 'big-digital':
-      return renderBigDigital(parts, hour12, options.color ?? 'white');
+      return renderBigDigital(parts, hour12, options.color ?? 'white', model);
     case 'digital-date':
-      return renderDigitalDate(parts, hour12);
+      return renderDigitalDate(parts, hour12, model);
     case 'word':
-      return renderWordClock(parts);
+      return renderWordClock(parts, model);
   }
 }

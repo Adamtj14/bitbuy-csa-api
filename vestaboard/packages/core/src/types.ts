@@ -1,4 +1,4 @@
-import type { Grid } from './grid.js';
+import type { BoardModel, Grid } from './grid.js';
 
 /**
  * The board ignores repeat pushes inside a ~15 second window (physical
@@ -100,6 +100,8 @@ export interface RotationSettings {
 
 /** The document the web app edits and the agent consumes (slides.json). */
 export interface BoardConfig {
+  /** Which physical board this config targets. Default 'flagship'. */
+  boardModel?: BoardModel;
   rotation: RotationSettings;
   slides: Slide[];
 }
@@ -151,6 +153,8 @@ export interface Game {
 /** Everything a renderer may need; fetching happens outside the render. */
 export interface RenderContext {
   now: Date;
+  /** Board model to render for. Default 'flagship'. */
+  model?: BoardModel;
   quotes?: Quote[];
   weather?: WeatherData;
   news?: NewsItem[];

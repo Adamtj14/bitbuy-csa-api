@@ -1,8 +1,9 @@
 # Vestaboard Studio
 
-Self-controlled system for a Vestaboard split-flap display (6 rows × 22 columns):
-a web app to design and manage slides, and a local agent that pushes them to the
-board over its LAN-only Local API.
+Self-controlled system for a Vestaboard split-flap display — both the flagship
+(6 rows × 22 columns) and the Vestaboard Note (3 × 15) — with a web app to
+design and manage slides and a local agent that pushes them to the board over
+its LAN-only Local API.
 
 ```
 ┌────────────────────────────┐        ┌──────────────────────────────┐
@@ -32,9 +33,16 @@ the board shows.
 
 ## Hardware constraints (why things work the way they do)
 
-- The board accepts **character arrays only** — a 6×22 grid of numeric codes
-  (letters, digits, punctuation, color chips 63–71). See `packages/core/src/chars.ts`
-  for the verified map.
+- The board accepts **character arrays only** — a grid of numeric codes
+  (letters, digits, punctuation, color chips 63–71): 6×22 on the flagship,
+  3×15 on the Vestaboard Note. See `packages/core/src/chars.ts` for the
+  verified map.
+- The **board model** is a config setting (Board → Model in the Studio,
+  `boardModel` in slides.json). Every renderer adapts: the Note drops title
+  rows and the ticker's percent column, the big-digital clock falls back to
+  centered text, weather shows the summary without the forecast rows.
+  Painter slides are drawn per-model — a grid painted for one model shows
+  blank on the other.
 - The board ignores repeat messages within **~15 seconds** (it is physical
   hardware flipping flaps) and its API returns 503 inside that window. The
   rotation engine clamps frequency to 15s and treats 503 as "retry next tick".

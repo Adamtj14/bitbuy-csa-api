@@ -90,6 +90,7 @@ export class RotationEngine {
     const slide = slides[this.slideIndex % slides.length]!;
 
     const ctx = await this.deps.getContext(slide, now, slides);
+    ctx.model = this.config?.boardModel ?? 'flagship';
     const grid = render(slide.config, ctx);
 
     if (this.lastPushed && gridsEqual(grid, this.lastPushed)) {

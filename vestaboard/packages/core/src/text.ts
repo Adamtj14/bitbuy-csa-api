@@ -1,19 +1,19 @@
 import { charToCode, CHAR_TO_CODE, BLANK } from './chars.js';
-import { blankGrid, COLS, Grid, ROWS } from './grid.js';
+import { blankGrid, BoardModel, COLS, dimsOf, Grid } from './grid.js';
 
 export type Align = 'left' | 'center' | 'right';
 export type VAlign = 'top' | 'middle' | 'bottom';
 
 /**
- * Encode one line of text into a COLS-wide row of codes. Text longer
+ * Encode one line of text into a `width`-wide row of codes. Text longer
  * than the row is truncated; unsupported characters become blanks.
  */
-export function encodeLine(text: string, align: Align = 'left'): number[] {
+export function encodeLine(text: string, align: Align = 'left', width: number = COLS): number[] {
   const codes = [...text.toUpperCase()]
     .filter((ch) => CHAR_TO_CODE.has(ch))
-    .slice(0, COLS)
+    .slice(0, width)
     .map((ch) => charToCode(ch));
-  const pad = COLS - codes.length;
+  const pad = width - codes.length;
   const left = align === 'right' ? pad : align === 'center' ? Math.floor(pad / 2) : 0;
   return [
     ...Array<number>(left).fill(BLANK),
@@ -58,26 +58,30 @@ export function wrapText(text: string, width: number = COLS): string[] {
 export interface LayoutOptions {
   align?: Align;
   valign?: VAlign;
+  model?: BoardModel;
 }
 
 /**
- * Word-wrap `text` onto a fresh grid. Lines beyond ROWS are dropped.
+ * Word-wrap `text` onto a fresh grid for the given board model. Lines
+ * beyond the board height are dropped.
  */
 export function layoutText(text: string, options: LayoutOptions = {}): Grid {
-  const { align = 'left', valign = 'top' } = options;
-  const lines = wrapText(text).slice(0, ROWS);
-  const grid = blankGrid();
-  const pad = ROWS - lines.length;
+  const { align = 'left', valign = 'top', model = 'flagship' } = options;
+  const { rows, cols } = dimsOf(model);
+  const lines = wrapText(text, cols).slice(0, rows);
+  const grid = blankGrid(model);
+  const pad = rows - lines.length;
   const top = valign === 'bottom' ? pad : valign === 'middle' ? Math.floor(pad / 2) : 0;
   lines.forEach((line, i) => {
-    grid[top + i] = encodeLine(line, align);
+    grid[top + i] = encodeLine(line, align, cols);
   });
   return grid;
 }
 
 /** Write a line into an existing grid at `row` (mutates and returns it). */
 export function writeLine(grid: Grid, row: number, text: string, align: Align = 'left'): Grid {
-  if (row >= 0 && row < ROWS) grid[row] = encodeLine(text, align);
+  const width = grid[row]?.length;
+  if (width) grid[row] = encodeLine(text, align, width);
   return grid;
 }
 
@@ -88,7 +92,7 @@ export function writeLine(grid: Grid, row: number, text: string, align: Align = 
 export function writeAt(row: number[], start: number, text: string): void {
   for (const [i, ch] of [...text.toUpperCase()].entries()) {
     const col = start + i;
-    if (col >= COLS) break;
+    if (col >= row.length) break;
     if (CHAR_TO_CODE.has(ch)) row[col] = charToCode(ch);
   }
 }

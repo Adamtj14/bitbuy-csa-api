@@ -22,13 +22,16 @@ export interface BoardPreviewProps {
 }
 
 /**
- * The 6x22 split-flap board, styled like the physical Vestaboard.
+ * The split-flap board, styled like the physical Vestaboard. Renders
+ * whatever shape the grid has (flagship 6x22 or Note 3x15).
  * Reused by the painter (editable), slide editors (live preview) and
  * slide lists (thumbnails) — always fed by the same render() output
  * the agent pushes, so the preview matches the board.
  */
 export function BoardPreview({ grid, scale = 'full', onPaint }: BoardPreviewProps) {
   const painting = useRef(false);
+  const rows = grid.length;
+  const cols = grid[0]?.length ?? 22;
 
   const handlePointerDown = useCallback(
     (row: number, col: number) => {
@@ -49,14 +52,15 @@ export function BoardPreview({ grid, scale = 'full', onPaint }: BoardPreviewProp
 
   const boardStyle: CSSProperties = {
     display: 'grid',
-    gridTemplateColumns: 'repeat(22, 1fr)',
+    gridTemplateColumns: `repeat(${cols}, 1fr)`,
     gap: scale === 'thumbnail' ? 1 : 3,
     padding: scale === 'thumbnail' ? 4 : 12,
     background: '#191919',
     borderRadius: scale === 'thumbnail' ? 4 : 10,
     boxShadow: 'inset 0 0 12px rgba(0,0,0,0.8)',
     width: '100%',
-    aspectRatio: '22 / 7',
+    maxWidth: cols < 22 ? 560 : undefined,
+    aspectRatio: `${cols} / ${rows + 1}`,
     userSelect: 'none',
     touchAction: 'none',
   };
@@ -82,7 +86,7 @@ export function BoardPreview({ grid, scale = 'full', onPaint }: BoardPreviewProp
             justifyContent: 'center',
             fontFamily: '"Roboto Mono", ui-monospace, monospace',
             fontWeight: 600,
-            fontSize: scale === 'thumbnail' ? 5 : 'min(1.6vw, 18px)',
+            fontSize: scale === 'thumbnail' ? 5 : `min(${(35 / cols).toFixed(2)}vw, 20px)`,
             overflow: 'hidden',
             cursor: onPaint ? 'pointer' : 'default',
             aspectRatio: '2 / 3',

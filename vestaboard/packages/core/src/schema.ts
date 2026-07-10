@@ -1,9 +1,16 @@
 import { z } from 'zod';
-import { COLS, ROWS } from './grid.js';
+import { BOARD_DIMS } from './grid.js';
 import { MIN_FREQUENCY_SECONDS } from './types.js';
 import type { BoardConfig } from './types.js';
 
-const gridSchema = z.array(z.array(z.number().int()).length(COLS)).length(ROWS);
+const exactGrid = (rows: number, cols: number) =>
+  z.array(z.array(z.number().int()).length(cols)).length(rows);
+
+// Painter grids may target either hardware model.
+const gridSchema = z.union([
+  exactGrid(BOARD_DIMS.flagship.rows, BOARD_DIMS.flagship.cols),
+  exactGrid(BOARD_DIMS.note.rows, BOARD_DIMS.note.cols),
+]);
 
 const symbolSchema = z.object({
   symbol: z.string().min(1),
@@ -59,6 +66,7 @@ export const slideSchema = z.object({
 });
 
 export const boardConfigSchema = z.object({
+  boardModel: z.enum(['flagship', 'note']).optional(),
   rotation: z.object({
     frequencySeconds: z.number().min(MIN_FREQUENCY_SECONDS),
   }),

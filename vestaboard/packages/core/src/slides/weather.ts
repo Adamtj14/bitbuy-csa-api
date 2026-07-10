@@ -1,5 +1,5 @@
 import { COLOR } from '../chars.js';
-import { blankGrid, COLS, Grid } from '../grid.js';
+import { blankGrid, BoardModel, dimsOf, Grid } from '../grid.js';
 import { encodeLine, writeAt } from '../text.js';
 import type { WeatherData, WeatherSlideConfig } from '../types.js';
 
@@ -25,22 +25,29 @@ function weatherChip(code: number): number {
   return COLOR.white;
 }
 
-
 const toF = (c: number) => (c * 9) / 5 + 32;
 
 /**
- *   G TORONTO         21°
+ * Flagship (6x22): current conditions plus up to 3 forecast rows.
+ * Note (3x15): the three summary rows only.
+ *
+ *   Y TORONTO          21°
  *   PARTLY CLOUDY
  *   H 24° L 16° RAIN 30%
- *   FRI  24°/16° CLOUDY
- *   SAT  22°/14° RAIN
- *   SUN  26°/17° SUNNY
+ *   W SAT 24°/16°  CLOUDY
+ *   ...
  */
-export function renderWeather(config: WeatherSlideConfig, weather?: WeatherData): Grid {
-  const grid = blankGrid();
+export function renderWeather(
+  config: WeatherSlideConfig,
+  weather?: WeatherData,
+  model: BoardModel = 'flagship',
+): Grid {
+  const { rows, cols } = dimsOf(model);
+  const grid = blankGrid(model);
   if (!weather) {
-    grid[2] = encodeLine(config.locationName, 'center');
-    grid[3] = encodeLine('WEATHER PENDING . . .', 'center');
+    const mid = Math.floor(rows / 2);
+    grid[mid - 1] = encodeLine(config.locationName, 'center', cols);
+    grid[mid] = encodeLine('WEATHER PENDING . . .', 'center', cols);
     return grid;
   }
   const convert = config.units === 'imperial' ? toF : (c: number) => c;
@@ -48,17 +55,19 @@ export function renderWeather(config: WeatherSlideConfig, weather?: WeatherData)
 
   const top = grid[0]!;
   top[0] = weatherChip(weather.weatherCode);
-  writeAt(top, 2, config.locationName.slice(0, 13));
+  writeAt(top, 2, config.locationName.slice(0, cols - 7));
   const temp = deg(weather.temperature);
-  writeAt(top, COLS - temp.length, temp);
+  writeAt(top, cols - temp.length, temp);
 
-  grid[1] = encodeLine(weatherLabel(weather.weatherCode));
+  grid[1] = encodeLine(weatherLabel(weather.weatherCode).slice(0, cols), 'left', cols);
 
   let summary = `H ${deg(weather.high)} L ${deg(weather.low)}`;
-  if (weather.precipitationChance !== undefined) {
+  if (weather.precipitationChance !== undefined && cols >= 22) {
     summary += `  RAIN ${Math.round(weather.precipitationChance)}%`;
   }
-  grid[2] = encodeLine(summary);
+  grid[2] = encodeLine(summary, 'left', cols);
+
+  if (rows < 6) return grid; // the Note stops at the summary
 
   const days = weather.daily.slice(0, Math.min(config.forecastDays ?? 3, 3));
   days.forEach((day, i) => {

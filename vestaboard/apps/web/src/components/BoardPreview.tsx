@@ -1,0 +1,116 @@
+import { CSSProperties, useCallback, useRef } from 'react';
+import { codeToChar, COLOR, Grid, isColorCode } from '@vestaboard/core';
+
+const CHIP_COLORS: Record<number, string> = {
+  [COLOR.red]: '#d33a2c',
+  [COLOR.orange]: '#e07f1f',
+  [COLOR.yellow]: '#e6c229',
+  [COLOR.green]: '#3a9c4e',
+  [COLOR.blue]: '#2a6fd6',
+  [COLOR.violet]: '#7a4dd8',
+  [COLOR.white]: '#e8e6e1',
+  [COLOR.black]: '#0c0c0c',
+  [COLOR.filled]: '#e8e6e1',
+};
+
+export interface BoardPreviewProps {
+  grid: Grid;
+  /** Tile size in px; the board scales to fit its container by default. */
+  scale?: 'thumbnail' | 'full';
+  /** When set, cells report pointer painting (click or drag). */
+  onPaint?: (row: number, col: number) => void;
+}
+
+/**
+ * The 6x22 split-flap board, styled like the physical Vestaboard.
+ * Reused by the painter (editable), slide editors (live preview) and
+ * slide lists (thumbnails) — always fed by the same render() output
+ * the agent pushes, so the preview matches the board.
+ */
+export function BoardPreview({ grid, scale = 'full', onPaint }: BoardPreviewProps) {
+  const painting = useRef(false);
+
+  const handlePointerDown = useCallback(
+    (row: number, col: number) => {
+      if (!onPaint) return;
+      painting.current = true;
+      onPaint(row, col);
+    },
+    [onPaint],
+  );
+
+  const handlePointerEnter = useCallback(
+    (row: number, col: number) => {
+      if (!onPaint || !painting.current) return;
+      onPaint(row, col);
+    },
+    [onPaint],
+  );
+
+  const boardStyle: CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(22, 1fr)',
+    gap: scale === 'thumbnail' ? 1 : 3,
+    padding: scale === 'thumbnail' ? 4 : 12,
+    background: '#191919',
+    borderRadius: scale === 'thumbnail' ? 4 : 10,
+    boxShadow: 'inset 0 0 12px rgba(0,0,0,0.8)',
+    width: '100%',
+    aspectRatio: '22 / 7',
+    userSelect: 'none',
+    touchAction: 'none',
+  };
+
+  return (
+    <div
+      style={boardStyle}
+      onPointerUp={() => (painting.current = false)}
+      onPointerLeave={() => (painting.current = false)}
+      role={onPaint ? 'grid' : 'img'}
+      aria-label="Vestaboard preview"
+    >
+      {grid.flatMap((row, r) =>
+        row.map((code, c) => {
+          const chip = isColorCode(code) ? CHIP_COLORS[code] : undefined;
+          const cellStyle: CSSProperties = {
+            position: 'relative',
+            borderRadius: 2,
+            background: chip ?? '#232323',
+            color: '#f0ede6',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: '"Roboto Mono", ui-monospace, monospace',
+            fontWeight: 600,
+            fontSize: scale === 'thumbnail' ? 5 : 'min(1.6vw, 18px)',
+            overflow: 'hidden',
+            cursor: onPaint ? 'pointer' : 'default',
+            aspectRatio: '2 / 3',
+          };
+          const char = chip ? '' : codeToChar(code);
+          return (
+            <div
+              key={`${r}-${c}`}
+              style={cellStyle}
+              onPointerDown={() => handlePointerDown(r, c)}
+              onPointerEnter={() => handlePointerEnter(r, c)}
+            >
+              {char === ' ' ? '' : char}
+              {/* split-flap seam */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: '50%',
+                  height: 1,
+                  background: 'rgba(0,0,0,0.45)',
+                }}
+              />
+            </div>
+          );
+        }),
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@vestaboard/agent",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "vestaboard-agent": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js",
+    "dev": "node --experimental-strip-types src/index.ts"
+  },
+  "dependencies": {
+    "@vestaboard/core": "*",
+    "@vestaboard/data": "*",
+    "zod": "^3.24.0"
+  }
+}

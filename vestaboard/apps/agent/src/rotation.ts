@@ -3,17 +3,17 @@ import {
   Grid,
   gridsEqual,
   MIN_FREQUENCY_SECONDS,
-  Quote,
   render,
+  RenderContext,
   Slide,
-  SymbolSpec,
   TransitionStrategy,
 } from '@vestaboard/core';
 import { RateLimitedError } from './board.js';
 
 export interface RotationDeps {
   getConfig(): Promise<BoardConfig>;
-  getQuotes(specs: SymbolSpec[]): Promise<Quote[]>;
+  /** Build the render context for a slide (see DataHub). */
+  getContext(slide: Slide, now: Date, allSlides: Slide[]): Promise<RenderContext>;
   push(grid: Grid, transition?: TransitionStrategy): Promise<void>;
   now(): Date;
   log(message: string): void;
@@ -22,8 +22,6 @@ export interface RotationDeps {
 export interface RotationOptions {
   /** How often to re-pull config so admin changes apply. Default 60s. */
   configRefreshSeconds?: number;
-  /** How long fetched quotes stay fresh. Default 60s. */
-  quoteTtlSeconds?: number;
 }
 
 /**
@@ -35,8 +33,6 @@ export interface RotationOptions {
 export class RotationEngine {
   private config: BoardConfig | null = null;
   private configFetchedAt = 0;
-  private quotes: Quote[] = [];
-  private quotesFetchedAt = 0;
   private slideIndex = -1;
   private lastAdvanceAt = 0;
   private lastPushed: Grid | null = null;
@@ -71,22 +67,6 @@ export class RotationEngine {
     }
   }
 
-  private async refreshQuotes(slides: Slide[], nowMs: number): Promise<void> {
-    const specs = slides.flatMap((s) =>
-      s.config.type === 'ticker' ? s.config.symbols : [],
-    );
-    if (specs.length === 0) return;
-    const ttl = (this.options.quoteTtlSeconds ?? 60) * 1000;
-    if (nowMs - this.quotesFetchedAt < ttl && this.quotes.length > 0) return;
-    try {
-      this.quotes = await this.deps.getQuotes(specs);
-      this.quotesFetchedAt = nowMs;
-    } catch (err) {
-      // Stale quotes beat a blank board.
-      this.deps.log(`quote refresh failed, reusing stale data: ${String(err)}`);
-    }
-  }
-
   /**
    * One scheduler step: refresh inputs, advance the slide when due,
    * render, push if changed. Returns ms to sleep before the next tick.
@@ -109,8 +89,8 @@ export class RotationEngine {
     }
     const slide = slides[this.slideIndex % slides.length]!;
 
-    await this.refreshQuotes(slides, nowMs);
-    const grid = render(slide.config, { now, quotes: this.quotes });
+    const ctx = await this.deps.getContext(slide, now, slides);
+    const grid = render(slide.config, ctx);
 
     if (this.lastPushed && gridsEqual(grid, this.lastPushed)) {
       this.deps.log(`skip "${slide.name}" (board already shows this grid)`);

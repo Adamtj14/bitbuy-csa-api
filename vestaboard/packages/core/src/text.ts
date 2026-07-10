@@ -80,3 +80,15 @@ export function writeLine(grid: Grid, row: number, text: string, align: Align = 
   if (row >= 0 && row < ROWS) grid[row] = encodeLine(text, align);
   return grid;
 }
+
+/**
+ * Write text into a row starting at `start` (mutates the row). Unsupported
+ * characters are dropped in place; text past the row edge is clipped.
+ */
+export function writeAt(row: number[], start: number, text: string): void {
+  for (const [i, ch] of [...text.toUpperCase()].entries()) {
+    const col = start + i;
+    if (col >= COLS) break;
+    if (CHAR_TO_CODE.has(ch)) row[col] = charToCode(ch);
+  }
+}

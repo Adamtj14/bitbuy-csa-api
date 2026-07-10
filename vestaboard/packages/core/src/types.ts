@@ -35,7 +35,40 @@ export interface PainterSlideConfig {
   grid: Grid;
 }
 
-export type SlideTypeConfig = ClockSlideConfig | TickerSlideConfig | PainterSlideConfig;
+export interface WeatherSlideConfig {
+  type: 'weather';
+  /** Display name for the location row, e.g. "TORONTO". */
+  locationName: string;
+  latitude: number;
+  longitude: number;
+  units?: 'metric' | 'imperial';
+  /** How many forecast days to show (0-3). Default 3. */
+  forecastDays?: number;
+}
+
+export interface NewsSlideConfig {
+  type: 'news';
+  /** RSS/Atom feed URLs, tried in order. */
+  feeds: string[];
+  title?: string;
+}
+
+export type League = 'nhl' | 'nba' | 'mlb' | 'nfl';
+
+export interface SportsSlideConfig {
+  type: 'sports';
+  league: League;
+  /** Abbreviations to pin first (e.g. ["TOR"]); empty shows all games. */
+  teams?: string[];
+}
+
+export type SlideTypeConfig =
+  | ClockSlideConfig
+  | TickerSlideConfig
+  | PainterSlideConfig
+  | WeatherSlideConfig
+  | NewsSlideConfig
+  | SportsSlideConfig;
 
 /**
  * Local API transition strategy, applied when the board flips to this
@@ -56,6 +89,8 @@ export interface Slide {
   order: number;
   config: SlideTypeConfig;
   transition?: TransitionStrategy;
+  /** User id of the creator; members may only edit their own slides. */
+  createdBy?: string;
 }
 
 export interface RotationSettings {
@@ -78,8 +113,46 @@ export interface Quote {
   currency: string;
 }
 
+export interface DailyForecast {
+  /** ISO date, e.g. "2026-07-10". */
+  date: string;
+  high: number;
+  low: number;
+  /** WMO weather code from Open-Meteo. */
+  weatherCode: number;
+}
+
+export interface WeatherData {
+  temperature: number;
+  /** WMO weather code for current conditions. */
+  weatherCode: number;
+  high: number;
+  low: number;
+  precipitationChance?: number;
+  daily: DailyForecast[];
+}
+
+export interface NewsItem {
+  title: string;
+  source?: string;
+}
+
+export type GameState = 'pre' | 'live' | 'final';
+
+export interface Game {
+  league: League;
+  home: { abbrev: string; score: number };
+  away: { abbrev: string; score: number };
+  state: GameState;
+  /** "7:30 PM" for pre, "P2 8:44" for live, "FINAL"/"FINAL OT" for final. */
+  statusText: string;
+}
+
 /** Everything a renderer may need; fetching happens outside the render. */
 export interface RenderContext {
   now: Date;
   quotes?: Quote[];
+  weather?: WeatherData;
+  news?: NewsItem[];
+  games?: Game[];
 }

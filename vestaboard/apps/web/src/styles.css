@@ -159,4 +159,69 @@ button:disabled {
 .add-buttons {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-card {
+  max-width: 380px;
+  text-align: center;
+}
+
+.google-button {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  background: #e8e6e1;
+  color: #101214;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.error {
+  color: #f28b82;
+  font-size: 13px;
+}
+
+.save-state {
+  font-size: 12px;
+  opacity: 0.7;
+  min-width: 70px;
+  text-align: right;
+}
+
+.whoami {
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.people-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.people-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.person-name {
+  flex: 1;
+}
+
+.person-email {
+  opacity: 0.65;
 }

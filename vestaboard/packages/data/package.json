@@ -15,6 +15,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@vestaboard/core": "*"
+    "@vestaboard/core": "*",
+    "fast-xml-parser": "^5.9.3"
   }
 }

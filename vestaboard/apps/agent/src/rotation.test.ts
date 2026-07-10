@@ -56,7 +56,7 @@ function makeHarness(
   const clock = { ms: 1_000_000 };
   const deps: RotationDeps = {
     getConfig: async () => config,
-    getQuotes: async () => [],
+    getContext: async (_slide, now) => ({ now }),
     push:
       pushImpl ??
       (async (grid, transition) => {
@@ -129,7 +129,7 @@ describe('RotationEngine', () => {
         if (failNext) throw new Error('down');
         return config;
       },
-      getQuotes: async () => [],
+      getContext: async (_slide, now) => ({ now }),
       push: async () => {},
       now: () => new Date(clockMs),
       log: () => {},

@@ -1,22 +1,5 @@
 import { blankGrid, BoardConfig, MIN_FREQUENCY_SECONDS, Slide } from '@vestaboard/core';
 
-const STORAGE_KEY = 'vestaboard-config-v1';
-
-export function defaultConfig(): BoardConfig {
-  return {
-    rotation: { frequencySeconds: 30 },
-    slides: [
-      {
-        id: newId(),
-        name: 'Word clock',
-        enabled: true,
-        order: 1,
-        config: { type: 'clock', style: 'word' },
-      },
-    ],
-  };
-}
-
 export function newId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -42,21 +25,34 @@ export function newSlide(type: Slide['config']['type'], order: number): Slide {
       };
     case 'painter':
       return { ...base, name: 'Painter', config: { type: 'painter', grid: blankGrid() } };
+    case 'weather':
+      return {
+        ...base,
+        name: 'Weather',
+        config: {
+          type: 'weather',
+          locationName: 'Toronto',
+          latitude: 43.6532,
+          longitude: -79.3832,
+        },
+      };
+    case 'news':
+      return {
+        ...base,
+        name: 'Headlines',
+        config: {
+          type: 'news',
+          title: 'HEADLINES',
+          feeds: ['https://www.cbc.ca/webfeed/rss/rss-topstories'],
+        },
+      };
+    case 'sports':
+      return {
+        ...base,
+        name: 'Scores',
+        config: { type: 'sports', league: 'nhl', teams: [] },
+      };
   }
-}
-
-export function loadConfig(): BoardConfig {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as BoardConfig;
-  } catch {
-    // fall through to defaults
-  }
-  return defaultConfig();
-}
-
-export function saveConfig(config: BoardConfig): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
 }
 
 export function clampFrequency(seconds: number): number {

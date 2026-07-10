@@ -1,26 +1,27 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BoardConfig,
   MIN_FREQUENCY_SECONDS,
-  Quote,
+  RenderContext,
   render,
   Slide,
   SymbolSpec,
 } from '@vestaboard/core';
-import { MockProvider } from '@vestaboard/data';
-import { BoardPreview } from './components/BoardPreview.js';
-import { SlideEditor } from './components/SlideEditor.js';
 import {
-  clampFrequency,
-  exportConfig,
-  loadConfig,
-  newSlide,
-  saveConfig,
-} from './state.js';
+  MOCK_NEWS,
+  MOCK_WEATHER,
+  mockGames,
+  MockProvider,
+} from '@vestaboard/data';
+import { api, ApiError, Me } from './api.js';
+import { BoardPreview } from './components/BoardPreview.js';
+import { LoginPage } from './components/LoginPage.js';
+import { AdminPanel } from './components/AdminPanel.js';
+import { SlideEditor } from './components/SlideEditor.js';
+import { clampFrequency, exportConfig, newSlide } from './state.js';
 
 const mockProvider = new MockProvider();
 
-/** Re-render previews each minute so clock slides stay current. */
 function useNow(): Date {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -30,11 +31,12 @@ function useNow(): Date {
   return now;
 }
 
-function useMockQuotes(config: BoardConfig): Quote[] {
-  const [quotes, setQuotes] = useState<Quote[]>([]);
+/** Sample data so every preview renders offline; the agent fetches live. */
+function usePreviewContext(config: BoardConfig | null, now: Date): RenderContext {
+  const [quotes, setQuotes] = useState<RenderContext['quotes']>([]);
   const specs = useMemo(
     () =>
-      config.slides.flatMap((s): SymbolSpec[] =>
+      (config?.slides ?? []).flatMap((s): SymbolSpec[] =>
         s.config.type === 'ticker' ? s.config.symbols : [],
       ),
     [config],
@@ -50,49 +52,140 @@ function useMockQuotes(config: BoardConfig): Quote[] {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [specsKey]);
-  return quotes;
+  const games = useMemo(
+    () => (['nhl', 'nba', 'mlb', 'nfl'] as const).flatMap((l) => mockGames(l)),
+    [],
+  );
+  return { now, quotes, weather: MOCK_WEATHER, news: MOCK_NEWS, games };
 }
 
-export default function App() {
-  const [config, setConfig] = useState<BoardConfig>(loadConfig);
-  const [selectedId, setSelectedId] = useState<string | null>(
-    () => loadConfig().slides[0]?.id ?? null,
-  );
-  const fileInput = useRef<HTMLInputElement>(null);
-  const now = useNow();
-  const quotes = useMockQuotes(config);
+type SaveState = 'saved' | 'saving' | 'error';
 
-  useEffect(() => saveConfig(config), [config]);
+export default function App() {
+  const [me, setMe] = useState<Me | null | 'loading'>('loading');
+  const [config, setConfig] = useState<BoardConfig | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>('saved');
+  const [error, setError] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout>>();
+  const now = useNow();
+  const ctx = usePreviewContext(config, now);
+
+  useEffect(() => {
+    api
+      .me()
+      .then((user) => {
+        setMe(user);
+        return api.getConfig().then((c) => {
+          setConfig(c);
+          setSelectedId(c.slides[0]?.id ?? null);
+        });
+      })
+      .catch(() => setMe(null));
+  }, []);
+
+  const isAdmin = me !== 'loading' && me !== null && me.role === 'admin';
+
+  const fail = (err: unknown) => {
+    setError(err instanceof ApiError ? err.message : String(err));
+    setSaveState('error');
+  };
+
+  /** Admin edits: update locally, then debounce a full-document save. */
+  const adminUpdate = useCallback((updater: (c: BoardConfig) => BoardConfig) => {
+    setConfig((current) => {
+      if (!current) return current;
+      const next = updater(current);
+      setSaveState('saving');
+      setError(null);
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => {
+        api
+          .putConfig(next)
+          .then(() => setSaveState('saved'))
+          .catch(fail);
+      }, 600);
+      return next;
+    });
+  }, []);
+
+  if (me === 'loading') return <div className="app">Loading…</div>;
+  if (me === null) return <LoginPage />;
+  if (!config) return <div className="app">Loading config…</div>;
 
   const slides = [...config.slides].sort((a, b) => a.order - b.order);
   const selected = slides.find((s) => s.id === selectedId) ?? slides[0] ?? null;
+  const canEdit = (slide: Slide) =>
+    isAdmin || (slide.createdBy === me.id && slide.config.type === 'painter');
 
-  const update = (patch: Partial<BoardConfig>) => setConfig((c) => ({ ...c, ...patch }));
-
-  const updateSlide = (slide: Slide) =>
-    update({ slides: config.slides.map((s) => (s.id === slide.id ? slide : s)) });
+  const updateSlide = (slide: Slide) => {
+    if (isAdmin) {
+      adminUpdate((c) => ({
+        ...c,
+        slides: c.slides.map((s) => (s.id === slide.id ? slide : s)),
+      }));
+    } else {
+      setConfig((c) =>
+        c ? { ...c, slides: c.slides.map((s) => (s.id === slide.id ? slide : s)) } : c,
+      );
+      setSaveState('saving');
+      api
+        .updateSlide(slide)
+        .then(() => setSaveState('saved'))
+        .catch(fail);
+    }
+  };
 
   const addSlide = (type: Slide['config']['type']) => {
-    const slide = newSlide(type, slides.length + 1);
-    update({ slides: [...config.slides, slide] });
-    setSelectedId(slide.id);
+    const slide = { ...newSlide(type, slides.length + 1), createdBy: me.id };
+    if (isAdmin) {
+      adminUpdate((c) => ({ ...c, slides: [...c.slides, slide] }));
+      setSelectedId(slide.id);
+    } else {
+      setSaveState('saving');
+      api
+        .createSlide(slide)
+        .then((created) => {
+          setConfig((c) => (c ? { ...c, slides: [...c.slides, created] } : c));
+          setSelectedId(created.id);
+          setSaveState('saved');
+        })
+        .catch(fail);
+    }
   };
 
   const removeSlide = (id: string) => {
-    update({ slides: config.slides.filter((s) => s.id !== id) });
+    if (isAdmin) {
+      adminUpdate((c) => ({ ...c, slides: c.slides.filter((s) => s.id !== id) }));
+    } else {
+      setSaveState('saving');
+      api
+        .deleteSlide(id)
+        .then(() => {
+          setConfig((c) => (c ? { ...c, slides: c.slides.filter((s) => s.id !== id) } : c));
+          setSaveState('saved');
+        })
+        .catch(fail);
+    }
     if (selectedId === id) setSelectedId(null);
   };
 
   const move = (id: string, dir: -1 | 1) => {
     const idx = slides.findIndex((s) => s.id === id);
     const other = slides[idx + dir];
-    if (!other) return;
-    const me = slides[idx]!;
-    update({
-      slides: config.slides.map((s) =>
-        s.id === me.id ? { ...s, order: other.order } : s.id === other.id ? { ...s, order: me.order } : s,
+    const mine = slides[idx];
+    if (!other || !mine) return;
+    adminUpdate((c) => ({
+      ...c,
+      slides: c.slides.map((s) =>
+        s.id === mine.id
+          ? { ...s, order: other.order }
+          : s.id === other.id
+            ? { ...s, order: mine.order }
+            : s,
       ),
-    });
+    }));
   };
 
   const importConfig = (file: File) => {
@@ -100,10 +193,17 @@ export default function App() {
       try {
         const parsed = JSON.parse(text) as BoardConfig;
         if (!Array.isArray(parsed.slides)) throw new Error('missing slides');
-        setConfig(parsed);
-        setSelectedId(parsed.slides[0]?.id ?? null);
+        setSaveState('saving');
+        api
+          .putConfig(parsed)
+          .then((saved) => {
+            setConfig(saved);
+            setSelectedId(saved.slides[0]?.id ?? null);
+            setSaveState('saved');
+          })
+          .catch(fail);
       } catch (err) {
-        alert(`Could not import: ${String(err)}`);
+        setError(`Could not import: ${String(err)}`);
       }
     });
   };
@@ -113,17 +213,33 @@ export default function App() {
       <header>
         <h1>Vestaboard Studio</h1>
         <div className="header-actions">
+          <span className="save-state">
+            {saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Save failed' : 'Saved'}
+          </span>
           <button onClick={() => exportConfig(config)}>Export slides.json</button>
-          <button onClick={() => fileInput.current?.click()}>Import</button>
-          <input
-            ref={fileInput}
-            type="file"
-            accept="application/json"
-            hidden
-            onChange={(e) => e.target.files?.[0] && importConfig(e.target.files[0])}
-          />
+          {isAdmin && (
+            <>
+              <button onClick={() => fileInput.current?.click()}>Import</button>
+              <input
+                ref={fileInput}
+                type="file"
+                accept="application/json"
+                hidden
+                onChange={(e) => e.target.files?.[0] && importConfig(e.target.files[0])}
+              />
+            </>
+          )}
+          <span className="whoami">
+            {me.name || me.email} · {me.role}
+          </span>
+          <button
+            onClick={() => api.logout().then(() => window.location.reload())}
+          >
+            Sign out
+          </button>
         </div>
       </header>
+      {error && <p className="error">{error}</p>}
 
       <div className="columns">
         <aside>
@@ -134,14 +250,19 @@ export default function App() {
               <input
                 type="number"
                 min={MIN_FREQUENCY_SECONDS}
+                disabled={!isAdmin}
                 value={config.rotation.frequencySeconds}
                 onChange={(e) =>
-                  update({ rotation: { frequencySeconds: Number(e.target.value) } })
+                  adminUpdate((c) => ({
+                    ...c,
+                    rotation: { frequencySeconds: Number(e.target.value) },
+                  }))
                 }
                 onBlur={(e) =>
-                  update({
+                  adminUpdate((c) => ({
+                    ...c,
                     rotation: { frequencySeconds: clampFrequency(Number(e.target.value)) },
-                  })
+                  }))
                 }
               />
             </label>
@@ -163,31 +284,51 @@ export default function App() {
                   <input
                     type="checkbox"
                     checked={slide.enabled}
-                    title="Show in rotation"
+                    disabled={!isAdmin}
+                    title={isAdmin ? 'Show in rotation' : 'Only admins control rotation'}
                     onClick={(e) => e.stopPropagation()}
                     onChange={(e) => updateSlide({ ...slide, enabled: e.target.checked })}
                   />
                   <div className="thumb">
-                    <BoardPreview
-                      grid={render(slide.config, { now, quotes })}
-                      scale="thumbnail"
-                    />
+                    <BoardPreview grid={render(slide.config, ctx)} scale="thumbnail" />
                   </div>
                   <span className="slide-name">{slide.name}</span>
                   <span className="slide-actions">
-                    <button disabled={i === 0} onClick={(e) => { e.stopPropagation(); move(slide.id, -1); }}>↑</button>
-                    <button disabled={i === slides.length - 1} onClick={(e) => { e.stopPropagation(); move(slide.id, 1); }}>↓</button>
-                    <button onClick={(e) => { e.stopPropagation(); removeSlide(slide.id); }}>✕</button>
+                    {isAdmin && (
+                      <>
+                        <button disabled={i === 0} onClick={(e) => { e.stopPropagation(); move(slide.id, -1); }}>↑</button>
+                        <button disabled={i === slides.length - 1} onClick={(e) => { e.stopPropagation(); move(slide.id, 1); }}>↓</button>
+                      </>
+                    )}
+                    {canEdit(slide) && (
+                      <button onClick={(e) => { e.stopPropagation(); removeSlide(slide.id); }}>✕</button>
+                    )}
                   </span>
                 </li>
               ))}
             </ul>
             <div className="add-buttons">
-              <button onClick={() => addSlide('clock')}>+ Clock</button>
-              <button onClick={() => addSlide('ticker')}>+ Ticker</button>
-              <button onClick={() => addSlide('painter')}>+ Painter</button>
+              {isAdmin ? (
+                <>
+                  <button onClick={() => addSlide('clock')}>+ Clock</button>
+                  <button onClick={() => addSlide('ticker')}>+ Ticker</button>
+                  <button onClick={() => addSlide('weather')}>+ Weather</button>
+                  <button onClick={() => addSlide('news')}>+ News</button>
+                  <button onClick={() => addSlide('sports')}>+ Sports</button>
+                  <button onClick={() => addSlide('painter')}>+ Painter</button>
+                </>
+              ) : (
+                <button onClick={() => addSlide('painter')}>+ Painter</button>
+              )}
             </div>
+            {!isAdmin && (
+              <p className="hint">
+                Members can draw painter slides; an admin enables them on the board.
+              </p>
+            )}
           </section>
+
+          {isAdmin && <AdminPanel me={me} />}
         </aside>
 
         <main>
@@ -195,15 +336,24 @@ export default function App() {
             <>
               <section className="panel">
                 <h2>Preview — {selected.name}</h2>
-                <BoardPreview grid={render(selected.config, { now, quotes })} />
-                {selected.config.type === 'ticker' && (
-                  <p className="hint">Preview uses sample quotes; the agent fetches live data.</p>
+                <BoardPreview grid={render(selected.config, ctx)} />
+                {selected.config.type !== 'painter' && selected.config.type !== 'clock' && (
+                  <p className="hint">Preview uses sample data; the agent fetches live.</p>
                 )}
               </section>
-              <section className="panel">
-                <h2>Edit</h2>
-                <SlideEditor slide={selected} onChange={updateSlide} />
-              </section>
+              {canEdit(selected) ? (
+                <section className="panel">
+                  <h2>Edit</h2>
+                  <SlideEditor slide={selected} onChange={updateSlide} />
+                </section>
+              ) : (
+                <section className="panel">
+                  <p className="hint">
+                    Only admins{selected.config.type === 'painter' ? ' or the creator' : ''} can
+                    edit this slide.
+                  </p>
+                </section>
+              )}
             </>
           ) : (
             <section className="panel">

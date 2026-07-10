@@ -3,6 +3,12 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { Grid, toAscii } from '@vestaboard/core';
 import {
   BitbuyProvider,
+  fetchNews,
+  fetchScores,
+  fetchWeather,
+  MOCK_NEWS,
+  MOCK_WEATHER,
+  mockGames,
   MockProvider,
   routeQuotes,
   TickerProvider,
@@ -10,6 +16,7 @@ import {
 } from '@vestaboard/data';
 import { BoardClient } from './board.js';
 import { fileConfigSource, urlConfigSource } from './config.js';
+import { DataHub, DataSources } from './data.js';
 import { RotationEngine } from './rotation.js';
 
 interface CliOptions {
@@ -30,30 +37,46 @@ Environment:
   BOARD_HOST            board hostname/IP (default vestaboard.local)
   VESTABOARD_LOCAL_KEY  local API key (required unless --dry-run)
   CONFIG_URL            pull config from a URL instead of --config file
+  CONFIG_TOKEN          bearer token for CONFIG_URL (agent token)
   CSA_FEED_URL          Bitbuy CSA feed URL for crypto quotes
-  MOCK_QUOTES=1         use deterministic fake quotes (offline/dev)`);
+  MOCK_DATA=1           deterministic fake data for every slide (offline/dev)`);
       process.exit(0);
     }
   }
   return options;
 }
 
-function buildProviders(): TickerProvider[] {
-  if (process.env.MOCK_QUOTES === '1') return [new MockProvider()];
+function buildSources(log: (m: string) => void): DataSources {
+  if (process.env.MOCK_DATA === '1' || process.env.MOCK_QUOTES === '1') {
+    const mock = new MockProvider();
+    return {
+      getQuotes: (specs) => mock.getQuotes(specs),
+      getWeather: async () => MOCK_WEATHER,
+      getNews: async () => MOCK_NEWS,
+      getScores: async (league) => mockGames(league),
+    };
+  }
   const providers: TickerProvider[] = [];
   if (process.env.CSA_FEED_URL) providers.push(new BitbuyProvider(process.env.CSA_FEED_URL));
   providers.push(new YahooProvider());
-  return providers;
+  log(`quote providers: ${providers.map((p) => p.name).join(', ')}`);
+  return {
+    getQuotes: (specs) => routeQuotes(providers, specs),
+    getWeather: (config) => fetchWeather(config),
+    getNews: (feeds) => fetchNews(feeds),
+    getScores: (league) => fetchScores(league),
+  };
 }
 
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
+  const log = (message: string) => console.log(`[${new Date().toISOString()}] ${message}`);
 
   const getConfig = process.env.CONFIG_URL
-    ? urlConfigSource(process.env.CONFIG_URL)
+    ? urlConfigSource(process.env.CONFIG_URL, process.env.CONFIG_TOKEN)
     : fileConfigSource(options.configPath);
 
-  const providers = buildProviders();
+  const hub = new DataHub(buildSources(log), { log });
 
   let push: (grid: Grid, transition?: string) => Promise<void>;
   if (options.dryRun) {
@@ -77,10 +100,10 @@ async function main(): Promise<void> {
 
   const engine = new RotationEngine({
     getConfig,
-    getQuotes: (specs) => routeQuotes(providers, specs),
+    getContext: (slide, now, allSlides) => hub.contextFor(slide, now, allSlides),
     push,
     now: () => new Date(),
-    log: (message) => console.log(`[${new Date().toISOString()}] ${message}`),
+    log,
   });
 
   // Stop the loop, but don't wait out a 30s sleep to actually exit.

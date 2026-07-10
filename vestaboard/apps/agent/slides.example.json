@@ -31,6 +31,37 @@
           { "symbol": "AAPL", "market": "us" }
         ]
       }
+    },
+    {
+      "id": "weather",
+      "name": "Weather",
+      "enabled": true,
+      "order": 4,
+      "config": {
+        "type": "weather",
+        "locationName": "Toronto",
+        "latitude": 43.6532,
+        "longitude": -79.3832
+      }
+    },
+    {
+      "id": "news",
+      "name": "Headlines",
+      "enabled": true,
+      "order": 5,
+      "config": {
+        "type": "news",
+        "title": "HEADLINES",
+        "feeds": ["https://www.cbc.ca/webfeed/rss/rss-topstories"]
+      }
+    },
+    {
+      "id": "sports",
+      "name": "NHL",
+      "enabled": true,
+      "order": 6,
+      "transition": "row",
+      "config": { "type": "sports", "league": "nhl", "teams": ["TOR"] }
     }
   ]
 }

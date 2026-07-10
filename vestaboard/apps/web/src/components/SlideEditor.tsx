@@ -1,10 +1,14 @@
 import {
   ClockSlideConfig,
+  League,
   Market,
+  NewsSlideConfig,
   Slide,
   SlideTypeConfig,
+  SportsSlideConfig,
   TickerSlideConfig,
   TransitionStrategy,
+  WeatherSlideConfig,
 } from '@vestaboard/core';
 import { PainterCanvas } from './PainterCanvas.js';
 
@@ -58,6 +62,15 @@ export function SlideEditor({ slide, onChange }: SlideEditorProps) {
           grid={slide.config.grid}
           onChange={(grid) => setConfig({ type: 'painter', grid })}
         />
+      )}
+      {slide.config.type === 'weather' && (
+        <WeatherEditor config={slide.config} onChange={setConfig} />
+      )}
+      {slide.config.type === 'news' && (
+        <NewsEditor config={slide.config} onChange={setConfig} />
+      )}
+      {slide.config.type === 'sports' && (
+        <SportsEditor config={slide.config} onChange={setConfig} />
       )}
     </div>
   );
@@ -171,6 +184,157 @@ function TickerEditor({
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+function WeatherEditor({
+  config,
+  onChange,
+}: {
+  config: WeatherSlideConfig;
+  onChange: (c: SlideTypeConfig) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <label className="field">
+        <span>Location name (on board)</span>
+        <input
+          value={config.locationName}
+          onChange={(e) => onChange({ ...config, locationName: e.target.value })}
+        />
+      </label>
+      <label className="field">
+        <span>Latitude</span>
+        <input
+          type="number"
+          step="0.0001"
+          value={config.latitude}
+          onChange={(e) => onChange({ ...config, latitude: Number(e.target.value) })}
+        />
+      </label>
+      <label className="field">
+        <span>Longitude</span>
+        <input
+          type="number"
+          step="0.0001"
+          value={config.longitude}
+          onChange={(e) => onChange({ ...config, longitude: Number(e.target.value) })}
+        />
+      </label>
+      <label className="field">
+        <span>Units</span>
+        <select
+          value={config.units ?? 'metric'}
+          onChange={(e) =>
+            onChange({ ...config, units: e.target.value as 'metric' | 'imperial' })
+          }
+        >
+          <option value="metric">°C</option>
+          <option value="imperial">°F</option>
+        </select>
+      </label>
+      <label className="field">
+        <span>Forecast days</span>
+        <select
+          value={config.forecastDays ?? 3}
+          onChange={(e) => onChange({ ...config, forecastDays: Number(e.target.value) })}
+        >
+          {[0, 1, 2, 3].map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
+
+function NewsEditor({
+  config,
+  onChange,
+}: {
+  config: NewsSlideConfig;
+  onChange: (c: SlideTypeConfig) => void;
+}) {
+  const setFeed = (i: number, value: string) => {
+    const feeds = config.feeds.map((f, j) => (j === i ? value : f));
+    onChange({ ...config, feeds });
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <label className="field">
+        <span>Title row (optional)</span>
+        <input
+          value={config.title ?? ''}
+          onChange={(e) => onChange({ ...config, title: e.target.value || undefined })}
+        />
+      </label>
+      <span style={{ fontSize: 13, opacity: 0.8 }}>RSS/Atom feeds (first working one wins)</span>
+      {config.feeds.map((feed, i) => (
+        <div key={i} style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={feed}
+            style={{ flex: 1 }}
+            onChange={(e) => setFeed(i, e.target.value)}
+          />
+          <button
+            disabled={config.feeds.length === 1}
+            onClick={() =>
+              onChange({ ...config, feeds: config.feeds.filter((_, j) => j !== i) })
+            }
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+      <div>
+        <button onClick={() => onChange({ ...config, feeds: [...config.feeds, ''] })}>
+          Add feed
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SportsEditor({
+  config,
+  onChange,
+}: {
+  config: SportsSlideConfig;
+  onChange: (c: SlideTypeConfig) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <label className="field">
+        <span>League</span>
+        <select
+          value={config.league}
+          onChange={(e) => onChange({ ...config, league: e.target.value as League })}
+        >
+          <option value="nhl">NHL</option>
+          <option value="nba">NBA</option>
+          <option value="mlb">MLB</option>
+          <option value="nfl">NFL</option>
+        </select>
+      </label>
+      <label className="field">
+        <span>Pin teams (comma-separated abbrevs)</span>
+        <input
+          placeholder="TOR, MTL"
+          value={(config.teams ?? []).join(', ')}
+          onChange={(e) =>
+            onChange({
+              ...config,
+              teams: e.target.value
+                .split(',')
+                .map((t) => t.trim().toUpperCase())
+                .filter(Boolean),
+            })
+          }
+        />
+      </label>
     </div>
   );
 }

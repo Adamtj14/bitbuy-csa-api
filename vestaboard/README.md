@@ -156,42 +156,25 @@ User=pi
 WantedBy=multi-user.target
 ```
 
-## Deploying to the VPS (ccml.ai)
+## Deploying to the VPS (ccml.ai) with Docker
 
-The server serves both the API and the built Studio (SPA fallback), so one
-Node process + a reverse proxy is the whole deployment. Node >= 22.5 required
-(`node:sqlite`).
+The image bundles the API server and the built Studio; SQLite lives on a
+named volume so upgrades keep your users and slides.
 
 ```sh
-cd vestaboard && npm install && npm run build
-SESSION_SECRET=$(openssl rand -hex 32)   # keep these in the unit file
-AGENT_TOKEN=$(openssl rand -hex 24)
+# on the VPS
+git clone https://github.com/Adamtj14/bitbuy-csa-api.git
+cd bitbuy-csa-api/vestaboard
+cp .env.example .env        # fill in secrets + Google OAuth client
+docker compose up -d --build
 ```
 
-systemd unit (`/etc/systemd/system/vestaboard-web.service`):
+`.env` needs: `BASE_URL=https://ccml.ai`, `SESSION_SECRET` and `AGENT_TOKEN`
+(`openssl rand -hex 32` / `-hex 24`), and the Google OAuth client
+(`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — redirect URI
+`https://ccml.ai/auth/google/callback`).
 
-```ini
-[Unit]
-Description=Vestaboard Studio server
-After=network-online.target
-
-[Service]
-Environment=PORT=8787
-Environment=BASE_URL=https://ccml.ai
-Environment=SESSION_SECRET=xxxx
-Environment=AGENT_TOKEN=xxxx
-Environment=GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
-Environment=GOOGLE_CLIENT_SECRET=xxxx
-Environment=DB_PATH=/srv/vestaboard/vestaboard.db
-ExecStart=/usr/bin/node /srv/vestaboard/repo/vestaboard/apps/server/dist/index.js
-Restart=always
-User=vestaboard
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Caddy example (auto-HTTPS):
+Point your existing reverse proxy at the container. Caddy example:
 
 ```
 ccml.ai {
@@ -199,9 +182,18 @@ ccml.ai {
 }
 ```
 
+To redeploy after a change:
+
+```sh
+git pull && docker compose up -d --build
+```
+
 The Pi agent then points `CONFIG_URL=https://ccml.ai/api/agent/config` with
 `CONFIG_TOKEN` equal to the server's `AGENT_TOKEN`; admin changes in the
 Studio reach the board within a minute, no Pi redeploys.
+
+(Prefer bare Node? The pre-Docker systemd instructions still work: run
+`node apps/server/dist/index.js` with the same env vars, Node >= 22.5.)
 
 ## What's deferred (next phases)
 

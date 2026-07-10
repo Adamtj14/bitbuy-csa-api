@@ -1,0 +1,14 @@
+services:
+  vestaboard-studio:
+    build: .
+    restart: unless-stopped
+    ports:
+      - '8787:8787'
+    env_file: .env
+    environment:
+      DB_PATH: /data/vestaboard.db
+    volumes:
+      - vestaboard-data:/data
+
+volumes:
+  vestaboard-data:

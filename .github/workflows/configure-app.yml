@@ -1,0 +1,86 @@
+name: Configure Studio env
+
+# Seed the Studio's .env on the VPS with generated secrets and the public
+# URL, (optionally) wire in Google OAuth from repo secrets, restart, and
+# verify. Also reports what is fronting ports 80/443 so a reverse proxy for
+# the subdomain can be planned. Idempotent: existing secret values are kept.
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Public URL the Studio is served from
+        required: true
+        default: https://vestaboard.ccml.ai
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure and restart
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          command_timeout: 10m
+          envs: BASE_URL_IN,GOOGLE_ID,GOOGLE_SECRET
+          script: |
+            set -uo pipefail
+            APP_DIR="$HOME/apps/bitbuy-csa-api/vestaboard"
+            cd "$APP_DIR" || { echo "app dir not found: $APP_DIR"; exit 1; }
+            touch .env
+
+            # set_env KEY VALUE  — replace or append KEY=VALUE
+            set_env() {
+              local key="$1"; local val="$2"
+              if grep -q "^${key}=" .env; then
+                # use a non-/ delimiter since values contain slashes
+                sed -i "s|^${key}=.*|${key}=${val}|" .env
+              else
+                echo "${key}=${val}" >> .env
+              fi
+            }
+            # ensure_secret KEY BYTES — only generate if currently empty/missing
+            ensure_secret() {
+              local key="$1"; local bytes="$2"
+              local cur
+              cur=$(grep "^${key}=" .env | head -1 | cut -d= -f2-)
+              if [ -z "$cur" ]; then
+                set_env "$key" "$(openssl rand -hex "$bytes")"
+                echo "generated ${key}"
+              else
+                echo "kept existing ${key}"
+              fi
+            }
+
+            ensure_secret SESSION_SECRET 32
+            ensure_secret AGENT_TOKEN 24
+            set_env BASE_URL "$BASE_URL_IN"
+            if [ -n "${GOOGLE_ID:-}" ]; then set_env GOOGLE_CLIENT_ID "$GOOGLE_ID"; echo "set GOOGLE_CLIENT_ID"; fi
+            if [ -n "${GOOGLE_SECRET:-}" ]; then set_env GOOGLE_CLIENT_SECRET "$GOOGLE_SECRET"; echo "set GOOGLE_CLIENT_SECRET"; fi
+
+            echo "== .env (values redacted) =="
+            sed -E 's/=(.+)/=<set>/; s/^([A-Z_]+)=$/\1=<empty>/' .env
+
+            echo "== restart =="
+            docker compose up -d
+            sleep 4
+            docker compose ps
+
+            echo "== local HTTP probe =="
+            for path in / /api/config; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:8787${path}" || echo "000")
+              echo "GET ${path} -> ${code}"
+            done
+
+            echo "== what is on :80 / :443 (for the reverse proxy) =="
+            (ss -tlnp 2>/dev/null | grep -E ':80 |:443 ' || echo "nothing on 80/443 via ss")
+            echo "-- docker containers --"
+            docker ps --format '{{.Names}}\t{{.Image}}\t{{.Ports}}'
+            echo "-- proxy hints --"
+            (command -v caddy >/dev/null && echo "caddy binary present") || true
+            (test -f /etc/caddy/Caddyfile && echo "found /etc/caddy/Caddyfile") || true
+            (command -v nginx >/dev/null && echo "nginx binary present") || true
+            (test -d /etc/nginx && echo "found /etc/nginx") || true

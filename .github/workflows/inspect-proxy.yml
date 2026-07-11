@@ -1,0 +1,45 @@
+name: Inspect Traefik wiring
+
+# Read-only: dump how Traefik and the already-working n8n service are wired
+# (networks, entrypoints, cert resolver, router labels) so the Studio can be
+# exposed at its subdomain by mirroring the same pattern.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          command_timeout: 10m
+          script: |
+            set -uo pipefail
+
+            echo "== traefik container: command/args =="
+            docker inspect adam-traefik-1 --format '{{json .Args}}' 2>/dev/null | tr ',' '\n'
+            echo "== traefik: networks =="
+            docker inspect adam-traefik-1 --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' 2>/dev/null
+
+            echo "== traefik: static config files (labels/providers) =="
+            docker inspect adam-traefik-1 --format '{{json .Config.Labels}}' 2>/dev/null | tr ',' '\n'
+            docker inspect adam-traefik-1 --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}' 2>/dev/null
+
+            echo "== n8n container: traefik labels (the working pattern to copy) =="
+            docker inspect adam-n8n-1 --format '{{json .Config.Labels}}' 2>/dev/null | tr ',' '\n' | grep -i traefik || echo "no traefik labels on n8n"
+            echo "== n8n: networks =="
+            docker inspect adam-n8n-1 --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' 2>/dev/null
+
+            echo "== all docker networks =="
+            docker network ls
+
+            echo "== traefik dynamic/file config on disk (if any) =="
+            for d in /root /opt /srv /home; do
+              find "$d" -maxdepth 4 \( -iname 'traefik*.y*ml' -o -iname 'dynamic*.y*ml' \) 2>/dev/null
+            done | head -20

@@ -19,6 +19,10 @@ jobs:
     steps:
       - name: Configure and restart
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          BASE_URL_IN: ${{ github.event.inputs.base_url }}
+          GOOGLE_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -57,7 +61,7 @@ jobs:
 
             ensure_secret SESSION_SECRET 32
             ensure_secret AGENT_TOKEN 24
-            set_env BASE_URL "$BASE_URL_IN"
+            set_env BASE_URL "${BASE_URL_IN:-https://vestaboard.ccml.ai}"
             if [ -n "${GOOGLE_ID:-}" ]; then set_env GOOGLE_CLIENT_ID "$GOOGLE_ID"; echo "set GOOGLE_CLIENT_ID"; fi
             if [ -n "${GOOGLE_SECRET:-}" ]; then set_env GOOGLE_CLIENT_SECRET "$GOOGLE_SECRET"; echo "set GOOGLE_CLIENT_SECRET"; fi
 

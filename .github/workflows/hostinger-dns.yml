@@ -1,0 +1,80 @@
+name: Hostinger DNS record
+
+# Set or overwrite a single DNS record on a Hostinger-managed domain via the
+# Hostinger API. Requires the HOSTINGER_API_TOKEN repo secret (generate one in
+# hPanel → Profile → Account Information → API).
+#
+# Docs: PUT https://developers.hostinger.com/api/dns/v1/zones/{domain}
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: Domain zone (e.g. ccml.ai)
+        required: true
+        default: ccml.ai
+      name:
+        description: Record name (@ for the root/apex)
+        required: true
+        default: '@'
+      type:
+        description: Record type
+        required: true
+        default: A
+      content:
+        description: Record value (e.g. an IPv4 for an A record)
+        required: true
+        default: 72.60.127.52
+      ttl:
+        description: TTL in seconds
+        required: true
+        default: '3600'
+
+jobs:
+  set-record:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update DNS record
+        env:
+          TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
+          DOMAIN: ${{ github.event.inputs.domain }}
+          REC_NAME: ${{ github.event.inputs.name }}
+          REC_TYPE: ${{ github.event.inputs.type }}
+          REC_CONTENT: ${{ github.event.inputs.content }}
+          REC_TTL: ${{ github.event.inputs.ttl }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::error::HOSTINGER_API_TOKEN secret is not set"
+            exit 1
+          fi
+          body=$(jq -n \
+            --arg name "$REC_NAME" \
+            --arg type "$REC_TYPE" \
+            --arg content "$REC_CONTENT" \
+            --argjson ttl "$REC_TTL" \
+            '{overwrite: true, zone: [ { name: $name, type: $type, ttl: $ttl, records: [ { content: $content } ] } ] }')
+          echo "Request body:"; echo "$body" | jq .
+          code=$(curl -sS -o resp.json -w '%{http_code}' \
+            -X PUT "https://developers.hostinger.com/api/dns/v1/zones/${DOMAIN}" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -d "$body")
+          echo "HTTP $code"
+          echo "Response:"; cat resp.json | (jq . 2>/dev/null || cat)
+          if [ "$code" -ge 300 ]; then
+            echo "::error::Hostinger API returned HTTP $code"
+            exit 1
+          fi
+          echo "::notice::Set ${REC_TYPE} ${REC_NAME}.${DOMAIN} -> ${REC_CONTENT} (ttl ${REC_TTL})"
+
+      - name: Show current zone
+        env:
+          TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
+          DOMAIN: ${{ github.event.inputs.domain }}
+        run: |
+          set -euo pipefail
+          curl -sS "https://developers.hostinger.com/api/dns/v1/zones/${DOMAIN}" \
+            -H "Authorization: Bearer ${TOKEN}" -H "Accept: application/json" \
+            | (jq . 2>/dev/null || cat)

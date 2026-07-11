@@ -1,0 +1,67 @@
+{
+  "rotation": { "frequencySeconds": 30 },
+  "slides": [
+    {
+      "id": "clock-word",
+      "name": "Word clock",
+      "enabled": true,
+      "order": 1,
+      "config": { "type": "clock", "style": "word", "timeZone": "America/Toronto" }
+    },
+    {
+      "id": "clock-big",
+      "name": "Big clock",
+      "enabled": true,
+      "order": 2,
+      "transition": "edges-to-center",
+      "config": { "type": "clock", "style": "big-digital", "timeZone": "America/Toronto" }
+    },
+    {
+      "id": "markets",
+      "name": "Markets",
+      "enabled": true,
+      "order": 3,
+      "config": {
+        "type": "ticker",
+        "title": "MARKETS",
+        "symbols": [
+          { "symbol": "BTC/CAD", "market": "crypto" },
+          { "symbol": "ETH/CAD", "market": "crypto" },
+          { "symbol": "SHOP", "market": "tmx" },
+          { "symbol": "AAPL", "market": "us" }
+        ]
+      }
+    },
+    {
+      "id": "weather",
+      "name": "Weather",
+      "enabled": true,
+      "order": 4,
+      "config": {
+        "type": "weather",
+        "locationName": "Toronto",
+        "latitude": 43.6532,
+        "longitude": -79.3832
+      }
+    },
+    {
+      "id": "news",
+      "name": "Headlines",
+      "enabled": true,
+      "order": 5,
+      "config": {
+        "type": "news",
+        "title": "HEADLINES",
+        "feeds": ["https://www.cbc.ca/webfeed/rss/rss-topstories"]
+      }
+    },
+    {
+      "id": "sports",
+      "name": "NHL",
+      "enabled": true,
+      "order": 6,
+      "transition": "row",
+      "config": { "type": "sports", "league": "nhl", "teams": ["TOR"] }
+    }
+  ]
+}

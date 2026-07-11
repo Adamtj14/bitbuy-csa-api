@@ -16,7 +16,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=web
-      - traefik.http.routers.vestaboard.rule=Host(`vestaboard.ccml.ai`)
+      - traefik.http.routers.vestaboard.rule=Host(`vestaboard.ccml.cloud`)
       - traefik.http.routers.vestaboard.entrypoints=websecure
       - traefik.http.routers.vestaboard.tls=true
       - traefik.http.routers.vestaboard.tls.certresolver=mytlschallenge

@@ -115,7 +115,30 @@ MOCK_QUOTES=1 node dist/index.js --dry-run --config slides.example.json
 3. Put the client ID/secret in the server env (`GOOGLE_CLIENT_ID`,
    `GOOGLE_CLIENT_SECRET`).
 
-## Running the agent on the Pi
+## Pushing to the board
+
+Two ways to get rendered slides onto the physical board:
+
+### A. Cloud push from the server (no LAN device)
+
+When `VESTABOARD_RW_KEY` is set, the hosted server renders the active slide
+and pushes it to the board over Vestaboard's Read-Write / Cloud API on the
+rotation interval — same behaviour as the agent (15s floor, identical-grid
+skip, minute clock refresh, stale-data fallback), but nothing needs to run on
+the board's network.
+
+1. Enable the Read-Write API in the API tab at <https://web.vestaboard.com>
+   and copy the token.
+2. Set it in the server env (`VESTABOARD_RW_KEY`). Optional overrides:
+   `VESTABOARD_API_URL` (default `https://cloud.vestaboard.com/`) and
+   `VESTABOARD_AUTH_HEADER` (default `X-Vestaboard-Token`) for accounts that
+   use the older `rw.vestaboard.com` / `X-Vestaboard-Read-Write-Key` pairing.
+3. Restart the server — it logs `[pusher] pushed "<slide>"` on each update.
+
+Trade-off: this depends on Vestaboard's cloud and the internet. For a pure
+LAN, no-cloud setup, use the Pi agent below instead.
+
+### B. Local agent on the Pi (LAN only)
 
 ```sh
 # on the Pi, inside this repo

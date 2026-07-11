@@ -23,13 +23,15 @@ jobs:
           BASE_URL_IN: ${{ github.event.inputs.base_url }}
           GOOGLE_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          RW_KEY: ${{ secrets.VESTABOARD_RW_KEY }}
+          CSA_FEED: ${{ secrets.CSA_FEED_URL }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           command_timeout: 10m
-          envs: BASE_URL_IN,GOOGLE_ID,GOOGLE_SECRET
+          envs: BASE_URL_IN,GOOGLE_ID,GOOGLE_SECRET,RW_KEY,CSA_FEED
           script: |
             set -uo pipefail
             APP_DIR="$HOME/apps/bitbuy-csa-api/vestaboard"
@@ -64,6 +66,8 @@ jobs:
             set_env BASE_URL "${BASE_URL_IN:-https://vestaboard.ccml.ai}"
             if [ -n "${GOOGLE_ID:-}" ]; then set_env GOOGLE_CLIENT_ID "$GOOGLE_ID"; echo "set GOOGLE_CLIENT_ID"; fi
             if [ -n "${GOOGLE_SECRET:-}" ]; then set_env GOOGLE_CLIENT_SECRET "$GOOGLE_SECRET"; echo "set GOOGLE_CLIENT_SECRET"; fi
+            if [ -n "${RW_KEY:-}" ]; then set_env VESTABOARD_RW_KEY "$RW_KEY"; echo "set VESTABOARD_RW_KEY"; fi
+            if [ -n "${CSA_FEED:-}" ]; then set_env CSA_FEED_URL "$CSA_FEED"; echo "set CSA_FEED_URL"; fi
 
             echo "== .env (values redacted) =="
             sed -E 's/=(.+)/=<set>/; s/^([A-Z_]+)=$/\1=<empty>/' .env

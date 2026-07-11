@@ -1,0 +1,185 @@
+import {
+  BoardConfig,
+  Game,
+  Grid,
+  gridsEqual,
+  League,
+  MIN_FREQUENCY_SECONDS,
+  NewsItem,
+  Quote,
+  render,
+  RenderContext,
+  Slide,
+} from '@vestaboard/core';
+import { RateLimitedError, VestaboardCloudClient } from './vestaboard.js';
+import { DataSources } from './sources.js';
+
+export interface PusherDeps {
+  getConfig(): BoardConfig;
+  sources: DataSources;
+  client: Pick<VestaboardCloudClient, 'postMessage'>;
+  now(): Date;
+  log(message: string): void;
+}
+
+export interface PusherOptions {
+  /** How long fetched data stays fresh. Quotes default 60s, feeds 300s. */
+  quoteTtlSeconds?: number;
+  feedTtlSeconds?: number;
+}
+
+interface CacheEntry<T> {
+  value: T;
+  fetchedAt: number;
+}
+
+/**
+ * Renders the active slide from the stored config and pushes it to the
+ * board over the Vestaboard cloud API on the rotation interval. Same
+ * behaviour as the Pi agent (15s floor, identical-grid skip, minute
+ * clock refresh, stale-data fallback) but running inside the server, so
+ * no LAN device is needed.
+ */
+export class BoardPusher {
+  private slideIndex = -1;
+  private lastAdvanceAt = 0;
+  private lastPushed: Grid | null = null;
+  private stopped = false;
+
+  private quotes?: CacheEntry<Quote[]>;
+  private weather = new Map<string, CacheEntry<import('@vestaboard/core').WeatherData>>();
+  private news = new Map<string, CacheEntry<NewsItem[]>>();
+  private games = new Map<League, CacheEntry<Game[]>>();
+
+  constructor(
+    private readonly deps: PusherDeps,
+    private readonly options: PusherOptions = {},
+  ) {}
+
+  private fresh(entry: CacheEntry<unknown> | undefined, ttlSeconds: number, nowMs: number) {
+    return entry !== undefined && nowMs - entry.fetchedAt < ttlSeconds * 1000;
+  }
+
+  private async buildContext(
+    slide: Slide,
+    enabled: Slide[],
+    now: Date,
+  ): Promise<RenderContext> {
+    const nowMs = now.getTime();
+    const quoteTtl = this.options.quoteTtlSeconds ?? 60;
+    const feedTtl = this.options.feedTtlSeconds ?? 300;
+    const ctx: RenderContext = { now };
+    const config = slide.config;
+    const { sources, log } = this.deps;
+
+    try {
+      switch (config.type) {
+        case 'ticker': {
+          const specs = enabled.flatMap((s) =>
+            s.config.type === 'ticker' ? s.config.symbols : [],
+          );
+          if (!this.fresh(this.quotes, quoteTtl, nowMs)) {
+            this.quotes = { value: await sources.getQuotes(specs), fetchedAt: nowMs };
+          }
+          ctx.quotes = this.quotes?.value;
+          break;
+        }
+        case 'weather': {
+          const key = `${config.latitude},${config.longitude}`;
+          if (!this.fresh(this.weather.get(key), feedTtl, nowMs)) {
+            this.weather.set(key, { value: await sources.getWeather(config), fetchedAt: nowMs });
+          }
+          ctx.weather = this.weather.get(key)?.value;
+          break;
+        }
+        case 'news': {
+          const key = config.feeds.join('|');
+          if (!this.fresh(this.news.get(key), feedTtl, nowMs)) {
+            this.news.set(key, { value: await sources.getNews(config.feeds), fetchedAt: nowMs });
+          }
+          ctx.news = this.news.get(key)?.value;
+          break;
+        }
+        case 'sports': {
+          if (!this.fresh(this.games.get(config.league), feedTtl, nowMs)) {
+            this.games.set(config.league, {
+              value: await sources.getScores(config.league),
+              fetchedAt: nowMs,
+            });
+          }
+          ctx.games = this.games.get(config.league)?.value;
+          break;
+        }
+        case 'clock':
+        case 'painter':
+          break;
+      }
+    } catch (err) {
+      // Stale data (or a pending message from the renderer) beats a blank board.
+      log(`data fetch failed for "${slide.name}", using cached/none: ${String(err)}`);
+      ctx.quotes = this.quotes?.value;
+    }
+    return ctx;
+  }
+
+  /** One scheduler step; returns ms to sleep before the next tick. */
+  async tick(): Promise<number> {
+    const now = this.deps.now();
+    const nowMs = now.getTime();
+    const config = this.deps.getConfig();
+    const enabled = config.slides
+      .filter((s) => s.enabled)
+      .sort((a, b) => a.order - b.order);
+
+    if (enabled.length === 0) {
+      this.deps.log('no enabled slides — nothing to push');
+      return Math.max(config.rotation.frequencySeconds, MIN_FREQUENCY_SECONDS) * 1000;
+    }
+
+    const freqMs = Math.max(config.rotation.frequencySeconds, MIN_FREQUENCY_SECONDS) * 1000;
+    if (this.slideIndex < 0 || nowMs - this.lastAdvanceAt >= freqMs) {
+      this.slideIndex = (this.slideIndex + 1) % enabled.length;
+      this.lastAdvanceAt = nowMs;
+    }
+    const slide = enabled[this.slideIndex % enabled.length]!;
+
+    const ctx = await this.buildContext(slide, enabled, now);
+    ctx.model = config.boardModel ?? 'flagship';
+    const grid = render(slide.config, ctx);
+
+    if (this.lastPushed && gridsEqual(grid, this.lastPushed)) {
+      this.deps.log(`skip "${slide.name}" (board already shows this grid)`);
+    } else {
+      try {
+        await this.deps.client.postMessage(grid);
+        this.lastPushed = grid;
+        this.deps.log(`pushed "${slide.name}"`);
+      } catch (err) {
+        if (err instanceof RateLimitedError) {
+          this.deps.log(`rate limited pushing "${slide.name}", retrying next tick`);
+        } else {
+          this.deps.log(`push failed for "${slide.name}": ${String(err)}`);
+        }
+      }
+    }
+    return Math.max(Math.min(freqMs, 60_000), MIN_FREQUENCY_SECONDS * 1000);
+  }
+
+  async run(sleep: (ms: number) => Promise<void>): Promise<void> {
+    this.deps.log('cloud pusher started');
+    while (!this.stopped) {
+      let delay = MIN_FREQUENCY_SECONDS * 1000;
+      try {
+        delay = await this.tick();
+      } catch (err) {
+        this.deps.log(`tick failed: ${String(err)}`);
+        delay = 30_000;
+      }
+      await sleep(delay);
+    }
+  }
+
+  stop(): void {
+    this.stopped = true;
+  }
+}

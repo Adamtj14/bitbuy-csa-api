@@ -2,13 +2,31 @@ services:
   vestaboard-studio:
     build: .
     restart: unless-stopped
+    # Published on localhost only; public traffic comes through Traefik.
     ports:
-      - '8787:8787'
+      - '127.0.0.1:8787:8787'
     env_file: .env
     environment:
       DB_PATH: /data/vestaboard.db
     volumes:
       - vestaboard-data:/data
+    networks:
+      - default
+      - web
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=web
+      - traefik.http.routers.vestaboard.rule=Host(`vestaboard.ccml.cloud`)
+      - traefik.http.routers.vestaboard.entrypoints=websecure
+      - traefik.http.routers.vestaboard.tls=true
+      - traefik.http.routers.vestaboard.tls.certresolver=mytlschallenge
+      - traefik.http.services.vestaboard.loadbalancer.server.port=8787
 
 volumes:
   vestaboard-data:
+
+networks:
+  # Shared Traefik network (created by the existing stack).
+  web:
+    external: true
+  default: {}

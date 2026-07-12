@@ -63,6 +63,10 @@ export function BoardPreview({ grid, scale = 'full', onPaint }: BoardPreviewProp
     aspectRatio: `${cols} / ${rows + 1}`,
     userSelect: 'none',
     touchAction: 'none',
+    // Make the board a query container so cells size their glyphs to the
+    // board's own width (cqw), not the viewport. Keeps characters filling
+    // the cell whether the board is full-screen on a phone or in a column.
+    containerType: 'inline-size',
   };
 
   return (
@@ -86,7 +90,8 @@ export function BoardPreview({ grid, scale = 'full', onPaint }: BoardPreviewProp
             justifyContent: 'center',
             fontFamily: '"Roboto Mono", ui-monospace, monospace',
             fontWeight: 600,
-            fontSize: scale === 'thumbnail' ? 5 : `min(${(35 / cols).toFixed(2)}vw, 20px)`,
+            fontSize:
+              scale === 'thumbnail' ? 5 : `min(${(58 / cols).toFixed(2)}cqw, 20px)`,
             overflow: 'hidden',
             cursor: onPaint ? 'pointer' : 'default',
             aspectRatio: '2 / 3',

@@ -62,12 +62,13 @@ export function PainterCanvas({ grid, onChange }: PainterCanvasProps) {
             title={color}
             onClick={() => setTool({ kind: 'color', color })}
             style={{
-              width: 28,
-              height: 28,
+              width: 34,
+              height: 34,
               borderRadius: 6,
               background: SWATCH[color],
               border: isActiveColor(color) ? '3px solid #4f8ef7' : '1px solid #555',
               cursor: 'pointer',
+              touchAction: 'manipulation',
             }}
           />
         ))}

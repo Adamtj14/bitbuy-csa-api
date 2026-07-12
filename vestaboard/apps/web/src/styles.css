@@ -19,6 +19,8 @@ header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 16px;
 }
 
@@ -103,6 +105,8 @@ button:disabled {
 
 .header-actions {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -224,4 +228,89 @@ button:disabled {
 
 .person-email {
   opacity: 0.65;
+}
+
+/* ---- Phones / small tablets ---- */
+@media (max-width: 640px) {
+  .app {
+    padding: 12px 12px 40px;
+  }
+
+  h1 {
+    font-size: 20px;
+  }
+
+  /* Title on its own line, actions wrap beneath it. */
+  header {
+    align-items: flex-start;
+  }
+
+  .header-actions {
+    width: 100%;
+  }
+
+  .whoami {
+    /* Push the identity onto its own full-width line, before Sign out. */
+    flex-basis: 100%;
+    order: 5;
+  }
+
+  .save-state {
+    text-align: left;
+  }
+
+  /* iOS zooms the page when a focused field is under 16px — pin to 16. */
+  input:not([type='checkbox']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* Comfortable tap targets. */
+  button {
+    min-height: 40px;
+  }
+
+  .panel {
+    padding: 14px;
+  }
+
+  /* Reorder + delete controls need real touch targets. */
+  .slide-actions button {
+    min-height: 34px;
+    min-width: 34px;
+    padding: 4px 10px;
+    font-size: 14px;
+  }
+
+  .slide-list li {
+    padding: 10px;
+    gap: 12px;
+  }
+
+  .thumb {
+    width: 104px;
+  }
+
+  .add-buttons button {
+    flex: 1 1 44%;
+  }
+
+  /* People / invites rows: let name, email and controls wrap. */
+  .people-list li {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding: 8px;
+    border: 1px solid #2a2e34;
+    border-radius: 10px;
+  }
+
+  .person-name {
+    flex-basis: 100%;
+    font-weight: 600;
+  }
+
+  .person-email {
+    flex: 1;
+  }
 }

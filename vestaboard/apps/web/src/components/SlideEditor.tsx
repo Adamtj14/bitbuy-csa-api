@@ -1,5 +1,6 @@
 import {
   ClockSlideConfig,
+  Grid,
   League,
   Market,
   NewsSlideConfig,
@@ -11,6 +12,7 @@ import {
   WeatherSlideConfig,
 } from '@vestaboard/core';
 import { PainterCanvas } from './PainterCanvas.js';
+import { TransitionDemo } from './TransitionDemo.js';
 
 const TRANSITIONS: Array<TransitionStrategy | ''> = [
   '', 'column', 'reverse-column', 'edges-to-center', 'row', 'diagonal', 'random',
@@ -18,10 +20,12 @@ const TRANSITIONS: Array<TransitionStrategy | ''> = [
 
 export interface SlideEditorProps {
   slide: Slide;
+  /** The slide's currently rendered grid, for the live transition demo. */
+  previewGrid?: Grid;
   onChange: (slide: Slide) => void;
 }
 
-export function SlideEditor({ slide, onChange }: SlideEditorProps) {
+export function SlideEditor({ slide, previewGrid, onChange }: SlideEditorProps) {
   const setConfig = (config: SlideTypeConfig) => onChange({ ...slide, config });
 
   return (
@@ -51,6 +55,14 @@ export function SlideEditor({ slide, onChange }: SlideEditorProps) {
           ))}
         </select>
       </label>
+      {previewGrid && (
+        <div className="transition-inline">
+          <TransitionDemo grid={previewGrid} strategy={slide.transition} />
+          <span className="hint">
+            Live demo of the {slide.transition ?? 'default'} flip.
+          </span>
+        </div>
+      )}
       {slide.config.type === 'clock' && (
         <ClockEditor config={slide.config} onChange={setConfig} />
       )}

@@ -19,6 +19,16 @@ export interface BoardPreviewProps {
   scale?: 'thumbnail' | 'full';
   /** When set, cells report pointer painting (click or drag). */
   onPaint?: (row: number, col: number) => void;
+  /**
+   * Per-cell wave index (from `transitionSteps`). When present, each cell
+   * flaps into place staggered by its wave, animating the transition. Remount
+   * the component (change its `key`) to replay.
+   */
+  flipSteps?: number[][];
+  /** Delay per wave, in ms. */
+  flipUnitMs?: number;
+  /** How long a single cell's flap lasts, in ms. */
+  flipDurationMs?: number;
 }
 
 /**
@@ -28,7 +38,14 @@ export interface BoardPreviewProps {
  * slide lists (thumbnails) — always fed by the same render() output
  * the agent pushes, so the preview matches the board.
  */
-export function BoardPreview({ grid, scale = 'full', onPaint }: BoardPreviewProps) {
+export function BoardPreview({
+  grid,
+  scale = 'full',
+  onPaint,
+  flipSteps,
+  flipUnitMs = 45,
+  flipDurationMs = 280,
+}: BoardPreviewProps) {
   const painting = useRef(false);
   const rows = grid.length;
   const cols = grid[0]?.length ?? 22;
@@ -63,6 +80,12 @@ export function BoardPreview({ grid, scale = 'full', onPaint }: BoardPreviewProp
     aspectRatio: `${cols} / ${rows + 1}`,
     userSelect: 'none',
     touchAction: 'none',
+    // Make the board a query container so cells size their glyphs to the
+    // board's own width (cqw), not the viewport. Keeps characters filling
+    // the cell whether the board is full-screen on a phone or in a column.
+    containerType: 'inline-size',
+    // Depth so the staggered flap animation reads as flaps turning.
+    perspective: flipSteps ? '600px' : undefined,
   };
 
   return (
@@ -76,6 +99,7 @@ export function BoardPreview({ grid, scale = 'full', onPaint }: BoardPreviewProp
       {grid.flatMap((row, r) =>
         row.map((code, c) => {
           const chip = isColorCode(code) ? CHIP_COLORS[code] : undefined;
+          const step = flipSteps?.[r]?.[c];
           const cellStyle: CSSProperties = {
             position: 'relative',
             borderRadius: 2,
@@ -86,10 +110,16 @@ export function BoardPreview({ grid, scale = 'full', onPaint }: BoardPreviewProp
             justifyContent: 'center',
             fontFamily: '"Roboto Mono", ui-monospace, monospace',
             fontWeight: 600,
-            fontSize: scale === 'thumbnail' ? 5 : `min(${(35 / cols).toFixed(2)}vw, 20px)`,
+            fontSize:
+              scale === 'thumbnail' ? 5 : `min(${(58 / cols).toFixed(2)}cqw, 20px)`,
             overflow: 'hidden',
             cursor: onPaint ? 'pointer' : 'default',
             aspectRatio: '2 / 3',
+            ...(step !== undefined && {
+              transformOrigin: 'center',
+              animation: `bp-flap ${flipDurationMs}ms ease-out both`,
+              animationDelay: `${step * flipUnitMs}ms`,
+            }),
           };
           const char = chip ? '' : codeToChar(code);
           return (

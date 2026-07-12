@@ -4,6 +4,7 @@ export * from './text.js';
 export * from './types.js';
 export * from './render.js';
 export * from './schema.js';
+export * from './transitions.js';
 export * from './slides/clock.js';
 export * from './slides/ticker.js';
 export * from './slides/painter.js';

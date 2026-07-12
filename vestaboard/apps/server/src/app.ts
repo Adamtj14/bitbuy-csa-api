@@ -5,6 +5,7 @@ import { apiRouter } from './api.js';
 import { authRouter, type AuthOptions } from './auth.js';
 import { Store } from './db.js';
 import { Sessions } from './session.js';
+import type { PusherStatus } from './pusher.js';
 
 export interface AppOptions {
   dbPath: string;
@@ -17,6 +18,8 @@ export interface AppOptions {
   /** Absolute path to the built web app; served with SPA fallback if present. */
   webDist?: string;
   fetchImpl?: AuthOptions['fetchImpl'];
+  /** Live push status for the Settings screen. */
+  getPushStatus?: () => PusherStatus;
 }
 
 export function createApp(options: AppOptions): { app: Express; store: Store } {
@@ -39,7 +42,14 @@ export function createApp(options: AppOptions): { app: Express; store: Store } {
     }),
   );
 
-  app.use(apiRouter({ store, sessions, agentToken: options.agentToken }));
+  app.use(
+    apiRouter({
+      store,
+      sessions,
+      agentToken: options.agentToken,
+      getPushStatus: options.getPushStatus,
+    }),
+  );
 
   if (options.webDist && existsSync(options.webDist)) {
     const webDist = options.webDist;

@@ -1,6 +1,7 @@
 import {
   Game,
   League,
+  locationKey,
   NewsItem,
   Quote,
   RenderContext,
@@ -79,7 +80,7 @@ export class DataHub {
         break;
       }
       case 'weather': {
-        const key = `${config.latitude},${config.longitude}`;
+        const key = locationKey(config);
         if (!this.fresh(this.weather.get(key), feedTtl, nowMs)) {
           try {
             this.weather.set(key, {
@@ -91,6 +92,26 @@ export class DataHub {
           }
         }
         ctx.weather = this.weather.get(key)?.value;
+        break;
+      }
+      case 'multiweather': {
+        const byLocation: Record<string, WeatherData> = {};
+        for (const loc of config.locations) {
+          const key = locationKey(loc);
+          if (!this.fresh(this.weather.get(key), feedTtl, nowMs)) {
+            try {
+              this.weather.set(key, {
+                value: await this.sources.getWeather(loc),
+                fetchedAt: nowMs,
+              });
+            } catch (err) {
+              this.log(`weather fetch failed for ${loc.name}, reusing stale: ${String(err)}`);
+            }
+          }
+          const value = this.weather.get(key)?.value;
+          if (value) byLocation[key] = value;
+        }
+        ctx.weatherByLocation = byLocation;
         break;
       }
       case 'news': {
@@ -123,6 +144,7 @@ export class DataHub {
         break;
       }
       case 'clock':
+      case 'worldclock':
       case 'painter':
         break;
     }

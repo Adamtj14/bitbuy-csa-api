@@ -8,11 +8,14 @@ import {
 } from '@vestaboard/core';
 import type { Store, User } from './db.js';
 import type { Sessions } from './session.js';
+import type { PusherStatus } from './pusher.js';
 
 export interface ApiOptions {
   store: Store;
   sessions: Sessions;
   agentToken?: string;
+  /** Live push status for the Settings screen; absent = pusher not wired. */
+  getPushStatus?: () => PusherStatus;
 }
 
 interface AuthedRequest extends Request {
@@ -221,6 +224,48 @@ export function apiRouter(options: ApiOptions): Router {
     }
     store.deleteUser(target.id);
     res.json({ ok: true });
+  });
+
+  // --- settings: admin only. Secrets are write-only (never returned). ---
+
+  const settingsResponse = () => {
+    const s = store.getSettings();
+    return {
+      vestaboard: {
+        keySet: Boolean(s.vestaboardKey),
+        apiUrl: s.vestaboardApiUrl,
+        authHeader: s.vestaboardAuthHeader,
+      },
+      coingecko: { keySet: Boolean(s.coingeckoApiKey) },
+      push: options.getPushStatus?.() ?? null,
+    };
+  };
+
+  router.get('/api/settings', requireAdmin, (req, res) => {
+    res.json(settingsResponse());
+  });
+
+  const settingsSchema = z.object({
+    vestaboardKey: z.string().nullable().optional(),
+    vestaboardApiUrl: z.string().nullable().optional(),
+    vestaboardAuthHeader: z.string().nullable().optional(),
+    coingeckoApiKey: z.string().nullable().optional(),
+  });
+
+  router.put('/api/settings', requireAdmin, (req, res) => {
+    const parsed = settingsSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'invalid settings' });
+      return;
+    }
+    // Only touch fields that were actually provided; trim, '' clears.
+    const patch: Record<string, string | null> = {};
+    for (const [key, value] of Object.entries(parsed.data)) {
+      if (value === undefined) continue;
+      patch[key] = value === null ? null : value.trim();
+    }
+    store.updateSettings(patch as Parameters<Store['updateSettings']>[0]);
+    res.json(settingsResponse());
   });
 
   router.get('/api/invites', requireAdmin, (req, res) => {

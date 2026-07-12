@@ -8,7 +8,7 @@ import {
   WeatherSlideConfig,
 } from '@vestaboard/core';
 import {
-  BitbuyProvider,
+  CoinGeckoProvider,
   fetchNews,
   fetchScores,
   fetchWeather,
@@ -28,8 +28,19 @@ export interface DataSources {
   getScores(league: League): Promise<Game[]>;
 }
 
-/** Live fetchers by default; deterministic mocks when MOCK_DATA=1 (dev). */
-export function buildSources(env: NodeJS.ProcessEnv = process.env): DataSources {
+export interface SourceOptions {
+  /** Optional CoinGecko demo/pro key; raises the free rate limit. */
+  coingeckoApiKey?: string;
+}
+
+/**
+ * Live fetchers by default; deterministic mocks when MOCK_DATA=1 (dev).
+ * Crypto quotes come from CoinGecko (free, keyless), stocks from Yahoo.
+ */
+export function buildSources(
+  env: NodeJS.ProcessEnv = process.env,
+  options: SourceOptions = {},
+): DataSources {
   if (env.MOCK_DATA === '1') {
     const mock = new MockProvider();
     return {
@@ -39,9 +50,11 @@ export function buildSources(env: NodeJS.ProcessEnv = process.env): DataSources 
       getScores: async (league) => mockGames(league),
     };
   }
-  const providers: TickerProvider[] = [];
-  if (env.CSA_FEED_URL) providers.push(new BitbuyProvider(env.CSA_FEED_URL));
-  providers.push(new YahooProvider());
+  const apiKey = options.coingeckoApiKey || env.COINGECKO_API_KEY;
+  const providers: TickerProvider[] = [
+    new CoinGeckoProvider({ apiKey }),
+    new YahooProvider(),
+  ];
   return {
     getQuotes: (specs) => routeQuotes(providers, specs),
     getWeather: (config) => fetchWeather(config),

@@ -43,6 +43,19 @@ export function newSlide(
   switch (type) {
     case 'clock':
       return { ...base, name: 'Clock', config: { type: 'clock', style: 'digital-date' } };
+    case 'worldclock':
+      return {
+        ...base,
+        name: 'World clock',
+        config: {
+          type: 'worldclock',
+          zones: [
+            { label: 'TORONTO', timeZone: 'America/Toronto' },
+            { label: 'LONDON', timeZone: 'Europe/London' },
+            { label: 'TOKYO', timeZone: 'Asia/Tokyo' },
+          ],
+        },
+      };
     case 'ticker':
       return {
         ...base,
@@ -68,6 +81,19 @@ export function newSlide(
           locationName: 'Toronto',
           latitude: 43.6532,
           longitude: -79.3832,
+        },
+      };
+    case 'multiweather':
+      return {
+        ...base,
+        name: 'Weather',
+        config: {
+          type: 'multiweather',
+          locations: [
+            { name: 'TORONTO', latitude: 43.6532, longitude: -79.3832 },
+            { name: 'NEW YORK', latitude: 40.7128, longitude: -74.006 },
+            { name: 'LONDON', latitude: 51.5074, longitude: -0.1278 },
+          ],
         },
       };
     case 'news':

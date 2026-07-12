@@ -44,6 +44,16 @@ function formatTime(hour24: number, minute: number, hour12: boolean): string {
   return `${h}:${mm} ${hour24 < 12 ? 'AM' : 'PM'}`;
 }
 
+/** Current wall-clock time in an IANA zone, e.g. "9:05 AM" / "21:05". */
+export function formatZoneTime(
+  date: Date,
+  timeZone: string | undefined,
+  hour12: boolean,
+): string {
+  const parts = getTimeParts(date, timeZone);
+  return formatTime(parts.hour24, parts.minute, hour12);
+}
+
 /** 3x5 block font for digits, rows top to bottom, 1 = lit cell. */
 const DIGIT_FONT: Record<string, number[]> = {
   '0': [0b111, 0b101, 0b101, 0b101, 0b111],

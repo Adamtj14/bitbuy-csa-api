@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BoardConfig,
   BoardModel,
+  locationKey,
   MIN_FREQUENCY_SECONDS,
   RenderContext,
   render,
   Slide,
   SymbolSpec,
+  WeatherData,
 } from '@vestaboard/core';
 import {
   MOCK_NEWS,
@@ -20,6 +22,7 @@ import { LoginPage } from './components/LoginPage.js';
 import { AdminPanel } from './components/AdminPanel.js';
 import { SlideEditor } from './components/SlideEditor.js';
 import { TransitionGallery } from './components/TransitionDemo.js';
+import { SettingsPanel } from './components/SettingsPanel.js';
 import { clampFrequency, exportConfig, newSlide, sampleGrid } from './state.js';
 
 const mockProvider = new MockProvider();
@@ -59,7 +62,25 @@ function usePreviewContext(config: BoardConfig | null, now: Date): RenderContext
     () => (['nhl', 'nba', 'mlb', 'nfl'] as const).flatMap((l) => mockGames(l)),
     [],
   );
-  return { now, model, quotes, weather: MOCK_WEATHER, news: MOCK_NEWS, games };
+  // Sample weather for every multi-weather location so previews render offline.
+  const weatherByLocation = useMemo(() => {
+    const map: Record<string, WeatherData> = {};
+    for (const slide of config?.slides ?? []) {
+      if (slide.config.type === 'multiweather') {
+        for (const loc of slide.config.locations) map[locationKey(loc)] = MOCK_WEATHER;
+      }
+    }
+    return map;
+  }, [config]);
+  return {
+    now,
+    model,
+    quotes,
+    weather: MOCK_WEATHER,
+    weatherByLocation,
+    news: MOCK_NEWS,
+    games,
+  };
 }
 
 type SaveState = 'saved' | 'saving' | 'error';
@@ -71,6 +92,7 @@ export default function App() {
   const [saveState, setSaveState] = useState<SaveState>('saved');
   const [error, setError] = useState<string | null>(null);
   const [showTransitions, setShowTransitions] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
   const now = useNow();
@@ -224,6 +246,7 @@ export default function App() {
             {saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Save failed' : 'Saved'}
           </span>
           <button onClick={() => setShowTransitions(true)}>Transition demos</button>
+          {isAdmin && <button onClick={() => setShowSettings(true)}>Settings</button>}
           <button onClick={() => exportConfig(config)}>Export slides.json</button>
           {isAdmin && (
             <>
@@ -271,6 +294,27 @@ export default function App() {
               {config.boardModel === 'note' ? 'Vestaboard Note' : 'Vestaboard'}.
             </p>
             <TransitionGallery grid={sampleGrid(config.boardModel ?? 'flagship')} />
+          </div>
+        </div>
+      )}
+
+      {showSettings && isAdmin && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setShowSettings(false)}
+          role="presentation"
+        >
+          <div
+            className="modal modal-narrow"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label="Settings"
+          >
+            <div className="modal-head">
+              <h2>Settings</h2>
+              <button onClick={() => setShowSettings(false)}>Close</button>
+            </div>
+            <SettingsPanel />
           </div>
         </div>
       )}
@@ -363,8 +407,10 @@ export default function App() {
               {isAdmin ? (
                 <>
                   <button onClick={() => addSlide('clock')}>+ Clock</button>
+                  <button onClick={() => addSlide('worldclock')}>+ World clock</button>
                   <button onClick={() => addSlide('ticker')}>+ Ticker</button>
                   <button onClick={() => addSlide('weather')}>+ Weather</button>
+                  <button onClick={() => addSlide('multiweather')}>+ Multi-weather</button>
                   <button onClick={() => addSlide('news')}>+ News</button>
                   <button onClick={() => addSlide('sports')}>+ Sports</button>
                   <button onClick={() => addSlide('painter')}>+ Painter</button>

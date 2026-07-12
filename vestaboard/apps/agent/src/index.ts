@@ -2,7 +2,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { Grid, toAscii } from '@vestaboard/core';
 import {
-  BitbuyProvider,
+  CoinGeckoProvider,
   fetchNews,
   fetchScores,
   fetchWeather,
@@ -38,7 +38,7 @@ Environment:
   VESTABOARD_LOCAL_KEY  local API key (required unless --dry-run)
   CONFIG_URL            pull config from a URL instead of --config file
   CONFIG_TOKEN          bearer token for CONFIG_URL (agent token)
-  CSA_FEED_URL          Bitbuy CSA feed URL for crypto quotes
+  COINGECKO_API_KEY     optional CoinGecko demo key (raises rate limit)
   MOCK_DATA=1           deterministic fake data for every slide (offline/dev)`);
       process.exit(0);
     }
@@ -56,9 +56,10 @@ function buildSources(log: (m: string) => void): DataSources {
       getScores: async (league) => mockGames(league),
     };
   }
-  const providers: TickerProvider[] = [];
-  if (process.env.CSA_FEED_URL) providers.push(new BitbuyProvider(process.env.CSA_FEED_URL));
-  providers.push(new YahooProvider());
+  const providers: TickerProvider[] = [
+    new CoinGeckoProvider({ apiKey: process.env.COINGECKO_API_KEY }),
+    new YahooProvider(),
+  ];
   log(`quote providers: ${providers.map((p) => p.name).join(', ')}`);
   return {
     getQuotes: (specs) => routeQuotes(providers, specs),

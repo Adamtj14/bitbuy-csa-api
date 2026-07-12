@@ -18,7 +18,7 @@ export function weatherLabel(code: number): string {
   return 'CLOUDY';
 }
 
-function weatherChip(code: number): number {
+export function weatherChip(code: number): number {
   if (code <= 2) return COLOR.yellow;
   if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return COLOR.blue;
   if (code >= 95) return COLOR.violet;

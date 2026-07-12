@@ -3,13 +3,16 @@ import {
   Grid,
   League,
   Market,
+  MultiWeatherSlideConfig,
   NewsSlideConfig,
   Slide,
   SlideTypeConfig,
   SportsSlideConfig,
+  TEAMS,
   TickerSlideConfig,
   TransitionStrategy,
   WeatherSlideConfig,
+  WorldClockSlideConfig,
 } from '@vestaboard/core';
 import { PainterCanvas } from './PainterCanvas.js';
 import { TransitionDemo } from './TransitionDemo.js';
@@ -66,6 +69,9 @@ export function SlideEditor({ slide, previewGrid, onChange }: SlideEditorProps) 
       {slide.config.type === 'clock' && (
         <ClockEditor config={slide.config} onChange={setConfig} />
       )}
+      {slide.config.type === 'worldclock' && (
+        <WorldClockEditor config={slide.config} onChange={setConfig} />
+      )}
       {slide.config.type === 'ticker' && (
         <TickerEditor config={slide.config} onChange={setConfig} />
       )}
@@ -77,6 +83,9 @@ export function SlideEditor({ slide, previewGrid, onChange }: SlideEditorProps) 
       )}
       {slide.config.type === 'weather' && (
         <WeatherEditor config={slide.config} onChange={setConfig} />
+      )}
+      {slide.config.type === 'multiweather' && (
+        <MultiWeatherEditor config={slide.config} onChange={setConfig} />
       )}
       {slide.config.type === 'news' && (
         <NewsEditor config={slide.config} onChange={setConfig} />
@@ -165,7 +174,7 @@ function TickerEditor({
             value={spec.market}
             onChange={(e) => setSymbol(i, { market: e.target.value as Market })}
           >
-            <option value="crypto">Crypto (Bitbuy)</option>
+            <option value="crypto">Crypto (CoinGecko)</option>
             <option value="us">US exchange</option>
             <option value="tmx">TMX (Toronto)</option>
           </select>
@@ -317,36 +326,204 @@ function SportsEditor({
   config: SportsSlideConfig;
   onChange: (c: SlideTypeConfig) => void;
 }) {
+  const selected = new Set(config.teams ?? []);
+  const toggle = (abbrev: string) => {
+    const next = new Set(selected);
+    if (next.has(abbrev)) next.delete(abbrev);
+    else next.add(abbrev);
+    onChange({ ...config, teams: [...next] });
+  };
   return (
-    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <label className="field">
-        <span>League</span>
+        <span>Sport / league</span>
         <select
           value={config.league}
-          onChange={(e) => onChange({ ...config, league: e.target.value as League })}
+          onChange={(e) =>
+            // Switching league clears team picks (abbrevs differ per league).
+            onChange({ ...config, league: e.target.value as League, teams: [] })
+          }
         >
-          <option value="nhl">NHL</option>
-          <option value="nba">NBA</option>
-          <option value="mlb">MLB</option>
-          <option value="nfl">NFL</option>
+          <option value="nhl">NHL (hockey)</option>
+          <option value="nba">NBA (basketball)</option>
+          <option value="mlb">MLB (baseball)</option>
+          <option value="nfl">NFL (football)</option>
         </select>
       </label>
-      <label className="field">
-        <span>Pin teams (comma-separated abbrevs)</span>
+      <div className="field">
+        <span>Teams to follow{selected.size ? ` (${selected.size})` : ''}</span>
+        <div className="chip-grid">
+          {TEAMS[config.league].map((abbrev) => (
+            <button
+              key={abbrev}
+              type="button"
+              className={`chip ${selected.has(abbrev) ? 'chip-on' : ''}`}
+              onClick={() => toggle(abbrev)}
+            >
+              {abbrev}
+            </button>
+          ))}
+        </div>
+      </div>
+      <label className="field checkbox">
         <input
-          placeholder="TOR, MTL"
-          value={(config.teams ?? []).join(', ')}
-          onChange={(e) =>
+          type="checkbox"
+          checked={config.onlyPinned ?? false}
+          disabled={selected.size === 0}
+          onChange={(e) => onChange({ ...config, onlyPinned: e.target.checked })}
+        />
+        <span>Only show my teams’ games (otherwise they’re just listed first)</span>
+      </label>
+    </div>
+  );
+}
+
+function WorldClockEditor({
+  config,
+  onChange,
+}: {
+  config: WorldClockSlideConfig;
+  onChange: (c: SlideTypeConfig) => void;
+}) {
+  const setZone = (i: number, patch: Partial<{ label: string; timeZone: string }>) =>
+    onChange({
+      ...config,
+      zones: config.zones.map((z, j) => (j === i ? { ...z, ...patch } : z)),
+    });
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <span style={{ fontSize: 13, opacity: 0.8 }}>
+        One row per time zone (up to 6 on the flagship, 3 on the Note).
+      </span>
+      {config.zones.map((zone, i) => (
+        <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            placeholder="LABEL"
+            value={zone.label}
+            style={{ width: 110 }}
+            onChange={(e) => setZone(i, { label: e.target.value.toUpperCase() })}
+          />
+          <input
+            placeholder="America/Toronto"
+            value={zone.timeZone}
+            style={{ flex: 1, minWidth: 150 }}
+            onChange={(e) => setZone(i, { timeZone: e.target.value })}
+          />
+          <button
+            disabled={config.zones.length === 1}
+            onClick={() => onChange({ ...config, zones: config.zones.filter((_, j) => j !== i) })}
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button
+          disabled={config.zones.length >= 6}
+          onClick={() =>
+            onChange({ ...config, zones: [...config.zones, { label: 'CITY', timeZone: 'UTC' }] })
+          }
+        >
+          Add time zone
+        </button>
+        <label className="field checkbox">
+          <input
+            type="checkbox"
+            checked={config.hour12 ?? true}
+            onChange={(e) => onChange({ ...config, hour12: e.target.checked })}
+          />
+          <span>12-hour</span>
+        </label>
+      </div>
+      <p className="hint">Use IANA names like America/Toronto, Europe/London, Asia/Tokyo.</p>
+    </div>
+  );
+}
+
+function MultiWeatherEditor({
+  config,
+  onChange,
+}: {
+  config: MultiWeatherSlideConfig;
+  onChange: (c: SlideTypeConfig) => void;
+}) {
+  const setLoc = (
+    i: number,
+    patch: Partial<{ name: string; latitude: number; longitude: number }>,
+  ) =>
+    onChange({
+      ...config,
+      locations: config.locations.map((l, j) => (j === i ? { ...l, ...patch } : l)),
+    });
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13, opacity: 0.8 }}>
+          One row per location (up to 6 on the flagship, 3 on the Note).
+        </span>
+        <label className="field checkbox">
+          <span>Units</span>
+          <select
+            value={config.units ?? 'metric'}
+            onChange={(e) =>
+              onChange({ ...config, units: e.target.value as 'metric' | 'imperial' })
+            }
+          >
+            <option value="metric">°C</option>
+            <option value="imperial">°F</option>
+          </select>
+        </label>
+      </div>
+      {config.locations.map((loc, i) => (
+        <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            placeholder="NAME"
+            value={loc.name}
+            style={{ width: 110 }}
+            onChange={(e) => setLoc(i, { name: e.target.value.toUpperCase() })}
+          />
+          <input
+            type="number"
+            step="0.0001"
+            placeholder="lat"
+            value={loc.latitude}
+            style={{ width: 100 }}
+            onChange={(e) => setLoc(i, { latitude: Number(e.target.value) })}
+          />
+          <input
+            type="number"
+            step="0.0001"
+            placeholder="long"
+            value={loc.longitude}
+            style={{ width: 100 }}
+            onChange={(e) => setLoc(i, { longitude: Number(e.target.value) })}
+          />
+          <button
+            disabled={config.locations.length === 1}
+            onClick={() =>
+              onChange({ ...config, locations: config.locations.filter((_, j) => j !== i) })
+            }
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+      <div>
+        <button
+          disabled={config.locations.length >= 6}
+          onClick={() =>
             onChange({
               ...config,
-              teams: e.target.value
-                .split(',')
-                .map((t) => t.trim().toUpperCase())
-                .filter(Boolean),
+              locations: [...config.locations, { name: 'CITY', latitude: 0, longitude: 0 }],
             })
           }
-        />
-      </label>
+        >
+          Add location
+        </button>
+      </div>
+      <p className="hint">
+        Look up a city's latitude/longitude (e.g. from Google Maps) and paste them here.
+      </p>
     </div>
   );
 }

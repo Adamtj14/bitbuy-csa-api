@@ -25,8 +25,8 @@ the board shows.
 
 | Path | What it is |
 | --- | --- |
-| `packages/core` | Pure render library: character codes, 6×22 grid helpers, text layout, shared zod config schema, and the six slide renderers (clock / ticker / painter / weather / news / sports). No I/O. |
-| `packages/data` | Data fetchers: Bitbuy CSA feed (crypto, CAD pairs), Yahoo Finance (US + TMX stocks), Open-Meteo weather, RSS/Atom headlines, ESPN scoreboards, plus deterministic mocks. |
+| `packages/core` | Pure render library: character codes, 6×22 grid helpers, text layout, shared zod config schema, and the slide renderers (clock, world clock, ticker, painter, weather, multi-weather, news, sports). No I/O. |
+| `packages/data` | Data fetchers: CoinGecko (crypto, CAD/USD pairs, keyless), Yahoo Finance (US + TMX stocks), Open-Meteo weather, RSS/Atom headlines, ESPN scoreboards, plus deterministic mocks. |
 | `apps/agent` | Daemon for a Raspberry Pi on the board's LAN: rotation scheduler, per-type data hub with TTL caching, Local API client. |
 | `apps/server` | Hosted API on the VPS: Google OAuth, invites + admin/member roles, SQLite-backed board config, bearer-token endpoint the agent polls. |
 | `apps/web` | Vestaboard Studio web app: sign-in, slide manager, per-slide editors, painter canvas, split-flap preview, people/invites admin. |
@@ -125,19 +125,26 @@ Two ways to get rendered slides onto the physical board:
 
 ### A. Cloud push from the server (no LAN device)
 
-When `VESTABOARD_RW_KEY` is set, the hosted server renders the active slide
-and pushes it to the board over Vestaboard's Read-Write / Cloud API on the
-rotation interval — same behaviour as the agent (15s floor, identical-grid
-skip, minute clock refresh, stale-data fallback), but nothing needs to run on
-the board's network.
+The hosted server renders the active slide and pushes it to the board over
+Vestaboard's Read-Write / Cloud API on the rotation interval — same behaviour
+as the agent (15s floor, identical-grid skip, minute clock refresh, stale-data
+fallback), but nothing needs to run on the board's network.
 
-1. Enable the Read-Write API in the API tab at <https://web.vestaboard.com>
-   and copy the token.
-2. Set it in the server env (`VESTABOARD_RW_KEY`). Optional overrides:
-   `VESTABOARD_API_URL` (default `https://cloud.vestaboard.com/`) and
-   `VESTABOARD_AUTH_HEADER` (default `X-Vestaboard-Token`) for accounts that
-   use the older `rw.vestaboard.com` / `X-Vestaboard-Read-Write-Key` pairing.
-3. Restart the server — it logs `[pusher] pushed "<slide>"` on each update.
+Set the key **in the Studio** (recommended): sign in as an admin, open
+**Settings**, enable the Read-Write API in the API tab at
+<https://web.vestaboard.com>, and paste the token. Cloud push starts within a
+few seconds — no redeploy. The Settings screen shows live status (pushing /
+last slide / errors). The key is stored in the SQLite volume, so it survives
+restarts. Advanced fields cover accounts on the older `rw.vestaboard.com` /
+`X-Vestaboard-Read-Write-Key` pairing.
+
+Prefer env/secrets? Set `VESTABOARD_RW_KEY` (and optionally
+`VESTABOARD_API_URL` / `VESTABOARD_AUTH_HEADER`); on first boot the server
+seeds these into the DB, after which the Settings screen is the source of
+truth. Either way the server logs `[pusher] pushed "<slide>"` on each update.
+
+Crypto quotes come from **CoinGecko** (free, no key). An optional
+`COINGECKO_API_KEY` (or the Settings field) raises the rate limit.
 
 Trade-off: this depends on Vestaboard's cloud and the internet. For a pure
 LAN, no-cloud setup, use the Pi agent below instead.
@@ -160,7 +167,7 @@ Environment:
 | `VESTABOARD_LOCAL_KEY` | Local API key from enablement |
 | `CONFIG_URL` | Pull config from the hosted server (e.g. `https://ccml.ai/api/agent/config`); re-polled every 60s |
 | `CONFIG_TOKEN` | Bearer token for `CONFIG_URL` — must equal the server's `AGENT_TOKEN` |
-| `CSA_FEED_URL` | Bitbuy CSA feed URL for crypto quotes |
+| `COINGECKO_API_KEY` | Optional CoinGecko demo key (crypto works without it) |
 | `MOCK_DATA=1` | Deterministic fake data for every slide (dev/offline) |
 
 Sample systemd unit (`/etc/systemd/system/vestaboard-agent.service`):

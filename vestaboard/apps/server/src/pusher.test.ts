@@ -80,7 +80,7 @@ describe('BoardPusher', () => {
     const deps: PusherDeps = {
       getConfig: () => config,
       sources: emptySources,
-      client: { postMessage: async (g) => void pushes.push(g) },
+      getClient: () => ({ postMessage: async (g) => void pushes.push(g) }),
       now: () => new Date(ms),
       log: (m) => logs.push(m),
     };
@@ -114,18 +114,42 @@ describe('BoardPusher', () => {
     expect(d).toBeGreaterThanOrEqual(15_000);
   });
 
+  it('idles without pushing when no key is configured', async () => {
+    const pushes: Grid[] = [];
+    let hasKey = false;
+    const statuses: boolean[] = [];
+    const pusher = new BoardPusher({
+      getConfig: () => painter(3),
+      sources: emptySources,
+      getClient: () => (hasKey ? { postMessage: async (g) => void pushes.push(g) } : null),
+      now: () => new Date(1_000_000),
+      log: () => {},
+      onStatus: (s) => statuses.push(s.pushEnabled),
+    });
+    await pusher.tick();
+    expect(pushes).toHaveLength(0);
+    expect(pusher.getStatus().pushEnabled).toBe(false);
+    // once a key appears, it starts pushing
+    hasKey = true;
+    await pusher.tick();
+    expect(pushes.length).toBeGreaterThan(0);
+    expect(pusher.getStatus().pushEnabled).toBe(true);
+    expect(statuses).toContain(false);
+    expect(statuses).toContain(true);
+  });
+
   it('survives a rate-limited push', async () => {
     const config = painter(9);
     let calls = 0;
     const deps: PusherDeps = {
       getConfig: () => config,
       sources: emptySources,
-      client: {
+      getClient: () => ({
         postMessage: async () => {
           calls++;
           if (calls === 1) throw new RateLimitedError();
         },
-      },
+      }),
       now: () => new Date(1000),
       log: () => {},
     };

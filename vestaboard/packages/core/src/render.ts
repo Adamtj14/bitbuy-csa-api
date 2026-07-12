@@ -1,9 +1,11 @@
 import type { Grid } from './grid.js';
 import type { RenderContext, SlideTypeConfig } from './types.js';
 import { renderClock } from './slides/clock.js';
+import { renderWorldClock } from './slides/worldclock.js';
 import { renderTicker } from './slides/ticker.js';
 import { renderPainter } from './slides/painter.js';
 import { renderWeather } from './slides/weather.js';
+import { renderMultiWeather } from './slides/multiweather.js';
 import { renderNews } from './slides/news.js';
 import { renderSports } from './slides/sports.js';
 
@@ -17,12 +19,16 @@ export function render(config: SlideTypeConfig, ctx: RenderContext): Grid {
   switch (config.type) {
     case 'clock':
       return renderClock(config, ctx.now, {}, model);
+    case 'worldclock':
+      return renderWorldClock(config, ctx.now, model);
     case 'ticker':
       return renderTicker(config, ctx.quotes ?? [], model);
     case 'painter':
       return renderPainter(config, model);
     case 'weather':
       return renderWeather(config, ctx.weather, model);
+    case 'multiweather':
+      return renderMultiWeather(config, ctx.weatherByLocation, model);
     case 'news':
       return renderNews(config, ctx.news, model);
     case 'sports':

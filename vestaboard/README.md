@@ -50,7 +50,11 @@ the board shows.
   re-renders the current slide, but only pushes when the grid actually changed.
 - The Local API natively supports flip **transition strategies**
   (`column`, `reverse-column`, `edges-to-center`, `row`, `diagonal`, `random`) —
-  selectable per slide in the editor.
+  selectable per slide in the editor. The Studio previews each one with a
+  staggered flap animation (**Transition demos** in the header, and a live
+  demo under each slide's transition picker); the board firmware performs the
+  real flip. The ordering is a pure, tested helper (`transitionSteps` in
+  `packages/core`) shared by every preview.
 
 ## One-time board setup (Local API enablement)
 
@@ -220,7 +224,8 @@ Studio reach the board within a minute, no Pi redeploys.
 
 ## What's deferred (next phases)
 
-- Preview-side animated transitions; optional wipe frames on the board
+- Optional wipe frames on the board itself (preview-side transition
+  animations are done — see the hardware-constraints section)
 - Confirming the eink display's eventual stock provider and sharing it
   (providers are pluggable — see `packages/data/src/provider.ts`)
 - Postgres migration if SQLite ever outgrows the VPS (unlikely for this scale)

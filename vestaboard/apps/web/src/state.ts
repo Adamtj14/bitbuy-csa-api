@@ -1,7 +1,37 @@
-import { blankGrid, BoardConfig, BoardModel, MIN_FREQUENCY_SECONDS, Slide } from '@vestaboard/core';
+import {
+  blankGrid,
+  BoardConfig,
+  BoardModel,
+  COLOR,
+  Grid,
+  MIN_FREQUENCY_SECONDS,
+  Slide,
+  writeLine,
+} from '@vestaboard/core';
 
 export function newId(): string {
   return Math.random().toString(36).slice(2, 10);
+}
+
+/** A colourful, letter-rich board used to demo transitions for a model. */
+export function sampleGrid(model: BoardModel = 'flagship'): Grid {
+  const grid = blankGrid(model);
+  const rainbow = [COLOR.red, COLOR.orange, COLOR.yellow, COLOR.green, COLOR.blue, COLOR.violet];
+  const chips = (row: number) => {
+    const line = grid[row];
+    if (line) for (let c = 0; c < line.length; c++) line[c] = rainbow[c % rainbow.length]!;
+  };
+  if (model === 'note') {
+    writeLine(grid, 0, 'VESTA', 'center');
+    writeLine(grid, 1, 'BOARD', 'center');
+    chips(2);
+  } else {
+    writeLine(grid, 0, 'VESTABOARD', 'center');
+    writeLine(grid, 1, 'STUDIO', 'center');
+    writeLine(grid, 3, 'TRANSITIONS', 'center');
+    chips(5);
+  }
+  return grid;
 }
 
 export function newSlide(

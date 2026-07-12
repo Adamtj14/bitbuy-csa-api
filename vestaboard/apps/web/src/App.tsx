@@ -19,7 +19,8 @@ import { BoardPreview } from './components/BoardPreview.js';
 import { LoginPage } from './components/LoginPage.js';
 import { AdminPanel } from './components/AdminPanel.js';
 import { SlideEditor } from './components/SlideEditor.js';
-import { clampFrequency, exportConfig, newSlide } from './state.js';
+import { TransitionGallery } from './components/TransitionDemo.js';
+import { clampFrequency, exportConfig, newSlide, sampleGrid } from './state.js';
 
 const mockProvider = new MockProvider();
 
@@ -69,6 +70,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>('saved');
   const [error, setError] = useState<string | null>(null);
+  const [showTransitions, setShowTransitions] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
   const now = useNow();
@@ -221,6 +223,7 @@ export default function App() {
           <span className="save-state">
             {saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Save failed' : 'Saved'}
           </span>
+          <button onClick={() => setShowTransitions(true)}>Transition demos</button>
           <button onClick={() => exportConfig(config)}>Export slides.json</button>
           {isAdmin && (
             <>
@@ -245,6 +248,32 @@ export default function App() {
         </div>
       </header>
       {error && <p className="error">{error}</p>}
+
+      {showTransitions && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setShowTransitions(false)}
+          role="presentation"
+        >
+          <div
+            className="modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label="Transition demos"
+          >
+            <div className="modal-head">
+              <h2>Transition demos</h2>
+              <button onClick={() => setShowTransitions(false)}>Close</button>
+            </div>
+            <p className="hint">
+              How the board flips to each slide. Set a slide's strategy in its editor;
+              the board firmware performs the real flip. Shown for the{' '}
+              {config.boardModel === 'note' ? 'Vestaboard Note' : 'Vestaboard'}.
+            </p>
+            <TransitionGallery grid={sampleGrid(config.boardModel ?? 'flagship')} />
+          </div>
+        </div>
+      )}
 
       <div className="columns">
         <aside>
@@ -367,7 +396,11 @@ export default function App() {
               {canEdit(selected) ? (
                 <section className="panel">
                   <h2>Edit</h2>
-                  <SlideEditor slide={selected} onChange={updateSlide} />
+                  <SlideEditor
+                    slide={selected}
+                    previewGrid={render(selected.config, ctx)}
+                    onChange={updateSlide}
+                  />
                 </section>
               ) : (
                 <section className="panel">

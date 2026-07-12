@@ -165,7 +165,7 @@ function TickerEditor({
             value={spec.market}
             onChange={(e) => setSymbol(i, { market: e.target.value as Market })}
           >
-            <option value="crypto">Crypto (Bitbuy)</option>
+            <option value="crypto">Crypto (CoinGecko)</option>
             <option value="us">US exchange</option>
             <option value="tmx">TMX (Toronto)</option>
           </select>

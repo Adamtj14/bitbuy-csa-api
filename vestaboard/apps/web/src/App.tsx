@@ -20,6 +20,7 @@ import { LoginPage } from './components/LoginPage.js';
 import { AdminPanel } from './components/AdminPanel.js';
 import { SlideEditor } from './components/SlideEditor.js';
 import { TransitionGallery } from './components/TransitionDemo.js';
+import { SettingsPanel } from './components/SettingsPanel.js';
 import { clampFrequency, exportConfig, newSlide, sampleGrid } from './state.js';
 
 const mockProvider = new MockProvider();
@@ -71,6 +72,7 @@ export default function App() {
   const [saveState, setSaveState] = useState<SaveState>('saved');
   const [error, setError] = useState<string | null>(null);
   const [showTransitions, setShowTransitions] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
   const now = useNow();
@@ -224,6 +226,7 @@ export default function App() {
             {saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Save failed' : 'Saved'}
           </span>
           <button onClick={() => setShowTransitions(true)}>Transition demos</button>
+          {isAdmin && <button onClick={() => setShowSettings(true)}>Settings</button>}
           <button onClick={() => exportConfig(config)}>Export slides.json</button>
           {isAdmin && (
             <>
@@ -271,6 +274,27 @@ export default function App() {
               {config.boardModel === 'note' ? 'Vestaboard Note' : 'Vestaboard'}.
             </p>
             <TransitionGallery grid={sampleGrid(config.boardModel ?? 'flagship')} />
+          </div>
+        </div>
+      )}
+
+      {showSettings && isAdmin && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setShowSettings(false)}
+          role="presentation"
+        >
+          <div
+            className="modal modal-narrow"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label="Settings"
+          >
+            <div className="modal-head">
+              <h2>Settings</h2>
+              <button onClick={() => setShowSettings(false)}>Close</button>
+            </div>
+            <SettingsPanel />
           </div>
         </div>
       )}

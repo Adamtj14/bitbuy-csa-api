@@ -14,12 +14,30 @@ import {
 import { RateLimitedError, VestaboardCloudClient } from './vestaboard.js';
 import { DataSources } from './sources.js';
 
+export interface PusherStatus {
+  /** Whether a Vestaboard key is currently configured. */
+  pushEnabled: boolean;
+  /** Name of the last slide successfully pushed, if any. */
+  lastPushedSlide: string | null;
+  /** ISO timestamp of the last successful push. */
+  lastPushAt: string | null;
+  /** Human-readable last error (rate limit, network, etc.), if any. */
+  lastError: string | null;
+}
+
 export interface PusherDeps {
   getConfig(): BoardConfig;
   sources: DataSources;
-  client: Pick<VestaboardCloudClient, 'postMessage'>;
+  /**
+   * The cloud client to push with, or null when no Vestaboard key is
+   * configured. Called each tick so a key set at runtime (from the
+   * Settings screen) is picked up without a restart.
+   */
+  getClient(): Pick<VestaboardCloudClient, 'postMessage'> | null;
   now(): Date;
   log(message: string): void;
+  /** Optional: notified after each tick with the current push status. */
+  onStatus?(status: PusherStatus): void;
 }
 
 export interface PusherOptions {
@@ -33,6 +51,9 @@ interface CacheEntry<T> {
   fetchedAt: number;
 }
 
+/** How often to re-check for a key while cloud push is idle (no key set). */
+const IDLE_POLL_MS = 5000;
+
 /**
  * Renders the active slide from the stored config and pushes it to the
  * board over the Vestaboard cloud API on the rotation interval. Same
@@ -45,6 +66,13 @@ export class BoardPusher {
   private lastAdvanceAt = 0;
   private lastPushed: Grid | null = null;
   private stopped = false;
+  private noKeyLogged = false;
+  private status: PusherStatus = {
+    pushEnabled: false,
+    lastPushedSlide: null,
+    lastPushAt: null,
+    lastError: null,
+  };
 
   private quotes?: CacheEntry<Quote[]>;
   private weather = new Map<string, CacheEntry<import('@vestaboard/core').WeatherData>>();
@@ -122,11 +150,38 @@ export class BoardPusher {
     return ctx;
   }
 
+  getStatus(): PusherStatus {
+    return { ...this.status };
+  }
+
+  private emitStatus(patch: Partial<PusherStatus>): void {
+    this.status = { ...this.status, ...patch };
+    this.deps.onStatus?.(this.getStatus());
+  }
+
   /** One scheduler step; returns ms to sleep before the next tick. */
   async tick(): Promise<number> {
     const now = this.deps.now();
     const nowMs = now.getTime();
     const config = this.deps.getConfig();
+
+    const client = this.deps.getClient();
+    if (!client) {
+      // No Vestaboard key yet — poll every few seconds so a key set from the
+      // Settings screen starts pushing promptly, without a restart.
+      if (!this.noKeyLogged) {
+        this.deps.log('no Vestaboard key set — not pushing (set one in Settings)');
+        this.noKeyLogged = true;
+      }
+      this.emitStatus({ pushEnabled: false });
+      return IDLE_POLL_MS;
+    }
+    if (this.noKeyLogged) {
+      this.deps.log('Vestaboard key configured — cloud push enabled');
+      this.noKeyLogged = false;
+    }
+    this.emitStatus({ pushEnabled: true });
+
     const enabled = config.slides
       .filter((s) => s.enabled)
       .sort((a, b) => a.order - b.order);
@@ -151,14 +206,21 @@ export class BoardPusher {
       this.deps.log(`skip "${slide.name}" (board already shows this grid)`);
     } else {
       try {
-        await this.deps.client.postMessage(grid);
+        await client.postMessage(grid);
         this.lastPushed = grid;
         this.deps.log(`pushed "${slide.name}"`);
+        this.emitStatus({
+          lastPushedSlide: slide.name,
+          lastPushAt: new Date(nowMs).toISOString(),
+          lastError: null,
+        });
       } catch (err) {
         if (err instanceof RateLimitedError) {
           this.deps.log(`rate limited pushing "${slide.name}", retrying next tick`);
+          this.emitStatus({ lastError: 'rate limited by Vestaboard, retrying' });
         } else {
           this.deps.log(`push failed for "${slide.name}": ${String(err)}`);
+          this.emitStatus({ lastError: String(err) });
         }
       }
     }

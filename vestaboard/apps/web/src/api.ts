@@ -23,6 +23,26 @@ export interface InviteRow {
   usedAt: string | null;
 }
 
+export interface PushStatus {
+  pushEnabled: boolean;
+  lastPushedSlide: string | null;
+  lastPushAt: string | null;
+  lastError: string | null;
+}
+
+export interface SettingsInfo {
+  vestaboard: { keySet: boolean; apiUrl: string | null; authHeader: string | null };
+  coingecko: { keySet: boolean };
+  push: PushStatus | null;
+}
+
+export interface SettingsPatch {
+  vestaboardKey?: string | null;
+  vestaboardApiUrl?: string | null;
+  vestaboardAuthHeader?: string | null;
+  coingeckoApiKey?: string | null;
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -83,4 +103,8 @@ export const api = {
     request<InviteRow>('/api/invites', { method: 'POST', body: JSON.stringify({ email, role }) }),
   deleteInvite: (id: string) =>
     request<{ ok: boolean }>(`/api/invites/${id}`, { method: 'DELETE' }),
+
+  getSettings: () => request<SettingsInfo>('/api/settings'),
+  putSettings: (patch: SettingsPatch) =>
+    request<SettingsInfo>('/api/settings', { method: 'PUT', body: JSON.stringify(patch) }),
 };

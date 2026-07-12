@@ -94,6 +94,7 @@ describe('auth + roles', () => {
       ['/api/invites', {}],
       ['/api/rotation', { method: 'PUT', body: JSON.stringify({ frequencySeconds: 60 }) }],
       ['/api/config', { method: 'PUT', body: JSON.stringify({}) }],
+      ['/api/settings', {}],
     ] as const) {
       const res = await invitee.request(path, init as RequestInit);
       expect(res.status, path).toBe(403);
@@ -178,6 +179,31 @@ describe('auth + roles', () => {
       body: JSON.stringify({ role: 'member' }),
     });
     expect(demote.status).toBe(400);
+  });
+
+  it('stores the vestaboard key (trimmed) and never returns it', async () => {
+    const before = await (await admin.request('/api/settings')).json();
+    expect(before.vestaboard.keySet).toBe(false);
+
+    const put = await admin.request('/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify({
+        vestaboardKey: '  secret-token  ',
+        vestaboardApiUrl: 'https://rw.vestaboard.com/',
+      }),
+    });
+    expect(put.status).toBe(200);
+    const body = await put.json();
+    expect(body.vestaboard.keySet).toBe(true);
+    expect(body.vestaboard.apiUrl).toBe('https://rw.vestaboard.com/');
+    // the secret is write-only — it must never appear in a response
+    expect(JSON.stringify(body)).not.toContain('secret-token');
+
+    const cleared = await admin.request('/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ vestaboardKey: '' }),
+    });
+    expect((await cleared.json()).vestaboard.keySet).toBe(false);
   });
 
   it('serves config to the agent with a bearer token only', async () => {

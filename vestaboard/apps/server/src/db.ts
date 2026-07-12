@@ -28,6 +28,21 @@ export interface Invite {
   usedAt: string | null;
 }
 
+/** Runtime-editable settings (stored in the DB, set from the Studio UI). */
+export interface AppSettings {
+  vestaboardKey: string | null;
+  vestaboardApiUrl: string | null;
+  vestaboardAuthHeader: string | null;
+  coingeckoApiKey: string | null;
+}
+
+const SETTING_KEYS: Record<keyof AppSettings, string> = {
+  vestaboardKey: 'vestaboard_key',
+  vestaboardApiUrl: 'vestaboard_api_url',
+  vestaboardAuthHeader: 'vestaboard_auth_header',
+  coingeckoApiKey: 'coingecko_api_key',
+};
+
 const DEFAULT_CONFIG: BoardConfig = {
   rotation: { frequencySeconds: 30 },
   slides: [
@@ -74,6 +89,10 @@ export class Store {
         id INTEGER PRIMARY KEY CHECK (id = 1),
         json TEXT NOT NULL,
         updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
       );
     `);
   }
@@ -226,6 +245,48 @@ export class Store {
          ON CONFLICT (id) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at`,
       )
       .run(JSON.stringify(config), new Date().toISOString());
+  }
+
+  // --- settings (key/value) ---
+
+  private getSetting(key: string): string | null {
+    const row = this.db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+      | { value: string }
+      | undefined;
+    return row ? row.value : null;
+  }
+
+  private setSetting(key: string, value: string | null): void {
+    if (value === null || value === '') {
+      this.db.prepare('DELETE FROM settings WHERE key = ?').run(key);
+      return;
+    }
+    this.db
+      .prepare(
+        `INSERT INTO settings (key, value) VALUES (?, ?)
+         ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+      )
+      .run(key, value);
+  }
+
+  getSettings(): AppSettings {
+    return {
+      vestaboardKey: this.getSetting(SETTING_KEYS.vestaboardKey),
+      vestaboardApiUrl: this.getSetting(SETTING_KEYS.vestaboardApiUrl),
+      vestaboardAuthHeader: this.getSetting(SETTING_KEYS.vestaboardAuthHeader),
+      coingeckoApiKey: this.getSetting(SETTING_KEYS.coingeckoApiKey),
+    };
+  }
+
+  /** Update only the provided fields; `null`/'' clears a value. */
+  updateSettings(patch: Partial<AppSettings>): AppSettings {
+    for (const [field, storageKey] of Object.entries(SETTING_KEYS) as [
+      keyof AppSettings,
+      string,
+    ][]) {
+      if (field in patch) this.setSetting(storageKey, patch[field] ?? null);
+    }
+    return this.getSettings();
   }
 
   close(): void {

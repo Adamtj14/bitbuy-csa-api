@@ -17,6 +17,21 @@ export interface ClockSlideConfig {
   hour12?: boolean;
 }
 
+export interface TimeZoneEntry {
+  /** Display label, e.g. "TORONTO". */
+  label: string;
+  /** IANA zone, e.g. "America/Toronto". */
+  timeZone: string;
+}
+
+/** A single slide showing several clocks — one row per time zone. */
+export interface WorldClockSlideConfig {
+  type: 'worldclock';
+  zones: TimeZoneEntry[];
+  /** 12h (default) or 24h display. */
+  hour12?: boolean;
+}
+
 export type Market = 'crypto' | 'us' | 'tmx';
 
 export interface SymbolSpec {
@@ -46,6 +61,20 @@ export interface WeatherSlideConfig {
   forecastDays?: number;
 }
 
+export interface WeatherLocation {
+  /** Display name for the row, e.g. "TORONTO". */
+  name: string;
+  latitude: number;
+  longitude: number;
+}
+
+/** A single slide showing several locations — one row of current conditions each. */
+export interface MultiWeatherSlideConfig {
+  type: 'multiweather';
+  locations: WeatherLocation[];
+  units?: 'metric' | 'imperial';
+}
+
 export interface NewsSlideConfig {
   type: 'news';
   /** RSS/Atom feed URLs, tried in order. */
@@ -60,13 +89,17 @@ export interface SportsSlideConfig {
   league: League;
   /** Abbreviations to pin first (e.g. ["TOR"]); empty shows all games. */
   teams?: string[];
+  /** When true (with teams set), show only games involving those teams. */
+  onlyPinned?: boolean;
 }
 
 export type SlideTypeConfig =
   | ClockSlideConfig
+  | WorldClockSlideConfig
   | TickerSlideConfig
   | PainterSlideConfig
   | WeatherSlideConfig
+  | MultiWeatherSlideConfig
   | NewsSlideConfig
   | SportsSlideConfig;
 
@@ -157,6 +190,13 @@ export interface RenderContext {
   model?: BoardModel;
   quotes?: Quote[];
   weather?: WeatherData;
+  /** Weather per location, keyed "lat,long" — for the multi-weather slide. */
+  weatherByLocation?: Record<string, WeatherData>;
   news?: NewsItem[];
   games?: Game[];
+}
+
+/** Canonical key for a weather location in RenderContext.weatherByLocation. */
+export function locationKey(loc: { latitude: number; longitude: number }): string {
+  return `${loc.latitude},${loc.longitude}`;
 }

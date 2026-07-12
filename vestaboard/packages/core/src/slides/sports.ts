@@ -47,18 +47,24 @@ export function renderSports(
   if (rows > 3) {
     grid[row++] = encodeLine(config.league.toUpperCase(), 'center', cols);
   }
-  const forLeague = (games ?? []).filter((g) => g.league === config.league);
+  const pinned = (config.teams ?? []).map((t) => t.toUpperCase());
+  const involvesPinned = (g: Game) =>
+    pinned.includes(g.home.abbrev.toUpperCase()) ||
+    pinned.includes(g.away.abbrev.toUpperCase());
+
+  let forLeague = (games ?? []).filter((g) => g.league === config.league);
+  // "Only my teams" filters to games involving a picked team.
+  if (config.onlyPinned && pinned.length > 0) {
+    forLeague = forLeague.filter(involvesPinned);
+  }
   if (forLeague.length === 0) {
-    grid[Math.min(row + 1, rows - 1)] = encodeLine('NO GAMES TODAY', 'center', cols);
+    const message = config.onlyPinned && pinned.length > 0 ? 'NO TEAM GAMES' : 'NO GAMES TODAY';
+    grid[Math.min(row + 1, rows - 1)] = encodeLine(message, 'center', cols);
     return grid;
   }
-  const pinned = (config.teams ?? []).map((t) => t.toUpperCase());
   const rank = (g: Game) => {
-    const hasPin =
-      pinned.includes(g.home.abbrev.toUpperCase()) ||
-      pinned.includes(g.away.abbrev.toUpperCase());
     const stateRank = g.state === 'live' ? 0 : g.state === 'pre' ? 1 : 2;
-    return (hasPin ? 0 : 10) + stateRank;
+    return (involvesPinned(g) ? 0 : 10) + stateRank;
   };
   const ordered = [...forLeague].sort((a, b) => rank(a) - rank(b));
   ordered.slice(0, rows - row).forEach((game, i) => {

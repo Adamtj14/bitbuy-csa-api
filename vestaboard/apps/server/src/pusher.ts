@@ -4,12 +4,14 @@ import {
   Grid,
   gridsEqual,
   League,
+  locationKey,
   MIN_FREQUENCY_SECONDS,
   NewsItem,
   Quote,
   render,
   RenderContext,
   Slide,
+  WeatherData,
 } from '@vestaboard/core';
 import { RateLimitedError, VestaboardCloudClient } from './vestaboard.js';
 import { DataSources } from './sources.js';
@@ -75,7 +77,7 @@ export class BoardPusher {
   };
 
   private quotes?: CacheEntry<Quote[]>;
-  private weather = new Map<string, CacheEntry<import('@vestaboard/core').WeatherData>>();
+  private weather = new Map<string, CacheEntry<WeatherData>>();
   private news = new Map<string, CacheEntry<NewsItem[]>>();
   private games = new Map<League, CacheEntry<Game[]>>();
 
@@ -113,11 +115,24 @@ export class BoardPusher {
           break;
         }
         case 'weather': {
-          const key = `${config.latitude},${config.longitude}`;
+          const key = locationKey(config);
           if (!this.fresh(this.weather.get(key), feedTtl, nowMs)) {
             this.weather.set(key, { value: await sources.getWeather(config), fetchedAt: nowMs });
           }
           ctx.weather = this.weather.get(key)?.value;
+          break;
+        }
+        case 'multiweather': {
+          const byLocation: Record<string, WeatherData> = {};
+          for (const loc of config.locations) {
+            const key = locationKey(loc);
+            if (!this.fresh(this.weather.get(key), feedTtl, nowMs)) {
+              this.weather.set(key, { value: await sources.getWeather(loc), fetchedAt: nowMs });
+            }
+            const value = this.weather.get(key)?.value;
+            if (value) byLocation[key] = value;
+          }
+          ctx.weatherByLocation = byLocation;
           break;
         }
         case 'news': {
@@ -139,6 +154,7 @@ export class BoardPusher {
           break;
         }
         case 'clock':
+        case 'worldclock':
         case 'painter':
           break;
       }

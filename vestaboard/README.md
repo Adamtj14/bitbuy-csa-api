@@ -25,7 +25,7 @@ the board shows.
 
 | Path | What it is |
 | --- | --- |
-| `packages/core` | Pure render library: character codes, 6×22 grid helpers, text layout, shared zod config schema, and the six slide renderers (clock / ticker / painter / weather / news / sports). No I/O. |
+| `packages/core` | Pure render library: character codes, 6×22 grid helpers, text layout, shared zod config schema, and the slide renderers (clock, world clock, ticker, painter, weather, multi-weather, news, sports). No I/O. |
 | `packages/data` | Data fetchers: CoinGecko (crypto, CAD/USD pairs, keyless), Yahoo Finance (US + TMX stocks), Open-Meteo weather, RSS/Atom headlines, ESPN scoreboards, plus deterministic mocks. |
 | `apps/agent` | Daemon for a Raspberry Pi on the board's LAN: rotation scheduler, per-type data hub with TTL caching, Local API client. |
 | `apps/server` | Hosted API on the VPS: Google OAuth, invites + admin/member roles, SQLite-backed board config, bearer-token endpoint the agent polls. |

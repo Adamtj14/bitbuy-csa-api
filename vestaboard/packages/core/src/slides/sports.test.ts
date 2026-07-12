@@ -66,4 +66,23 @@ describe('renderSports', () => {
     const grid = renderSports({ type: 'sports', league: 'mlb' }, games);
     expect(toAscii(grid)).toContain('NO GAMES TODAY');
   });
+
+  it('onlyPinned shows just the picked teams’ games', () => {
+    const grid = renderSports(
+      { type: 'sports', league: 'nhl', teams: ['MTL'], onlyPinned: true },
+      games,
+    );
+    const ascii = toAscii(grid);
+    expect(ascii).toContain('MTL');
+    expect(ascii).not.toContain('TOR'); // TOR/BOS game filtered out
+    expect(ascii).not.toContain('VAN');
+  });
+
+  it('onlyPinned with no matching games explains why', () => {
+    const grid = renderSports(
+      { type: 'sports', league: 'nhl', teams: ['ZZZ'], onlyPinned: true },
+      games,
+    );
+    expect(toAscii(grid)).toContain('NO TEAM GAMES');
+  });
 });

@@ -25,6 +25,13 @@ export const slideConfigSchema = z.discriminatedUnion('type', [
     hour12: z.boolean().optional(),
   }),
   z.object({
+    type: z.literal('worldclock'),
+    zones: z
+      .array(z.object({ label: z.string(), timeZone: z.string().min(1) }))
+      .min(1),
+    hour12: z.boolean().optional(),
+  }),
+  z.object({
     type: z.literal('ticker'),
     symbols: z.array(symbolSchema).min(1),
     title: z.string().optional(),
@@ -42,6 +49,19 @@ export const slideConfigSchema = z.discriminatedUnion('type', [
     forecastDays: z.number().int().min(0).max(3).optional(),
   }),
   z.object({
+    type: z.literal('multiweather'),
+    locations: z
+      .array(
+        z.object({
+          name: z.string().min(1),
+          latitude: z.number().min(-90).max(90),
+          longitude: z.number().min(-180).max(180),
+        }),
+      )
+      .min(1),
+    units: z.enum(['metric', 'imperial']).optional(),
+  }),
+  z.object({
     type: z.literal('news'),
     feeds: z.array(z.string().url()).min(1),
     title: z.string().optional(),
@@ -50,6 +70,7 @@ export const slideConfigSchema = z.discriminatedUnion('type', [
     type: z.literal('sports'),
     league: z.enum(['nhl', 'nba', 'mlb', 'nfl']),
     teams: z.array(z.string()).optional(),
+    onlyPinned: z.boolean().optional(),
   }),
 ]);
 

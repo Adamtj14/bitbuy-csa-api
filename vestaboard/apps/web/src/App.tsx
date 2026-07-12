@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BoardConfig,
   BoardModel,
+  locationKey,
   MIN_FREQUENCY_SECONDS,
   RenderContext,
   render,
   Slide,
   SymbolSpec,
+  WeatherData,
 } from '@vestaboard/core';
 import {
   MOCK_NEWS,
@@ -60,7 +62,25 @@ function usePreviewContext(config: BoardConfig | null, now: Date): RenderContext
     () => (['nhl', 'nba', 'mlb', 'nfl'] as const).flatMap((l) => mockGames(l)),
     [],
   );
-  return { now, model, quotes, weather: MOCK_WEATHER, news: MOCK_NEWS, games };
+  // Sample weather for every multi-weather location so previews render offline.
+  const weatherByLocation = useMemo(() => {
+    const map: Record<string, WeatherData> = {};
+    for (const slide of config?.slides ?? []) {
+      if (slide.config.type === 'multiweather') {
+        for (const loc of slide.config.locations) map[locationKey(loc)] = MOCK_WEATHER;
+      }
+    }
+    return map;
+  }, [config]);
+  return {
+    now,
+    model,
+    quotes,
+    weather: MOCK_WEATHER,
+    weatherByLocation,
+    news: MOCK_NEWS,
+    games,
+  };
 }
 
 type SaveState = 'saved' | 'saving' | 'error';
@@ -387,8 +407,10 @@ export default function App() {
               {isAdmin ? (
                 <>
                   <button onClick={() => addSlide('clock')}>+ Clock</button>
+                  <button onClick={() => addSlide('worldclock')}>+ World clock</button>
                   <button onClick={() => addSlide('ticker')}>+ Ticker</button>
                   <button onClick={() => addSlide('weather')}>+ Weather</button>
+                  <button onClick={() => addSlide('multiweather')}>+ Multi-weather</button>
                   <button onClick={() => addSlide('news')}>+ News</button>
                   <button onClick={() => addSlide('sports')}>+ Sports</button>
                   <button onClick={() => addSlide('painter')}>+ Painter</button>

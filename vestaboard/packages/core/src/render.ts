@@ -4,6 +4,7 @@ import { renderClock } from './slides/clock.js';
 import { renderWorldClock } from './slides/worldclock.js';
 import { renderTicker } from './slides/ticker.js';
 import { renderPainter } from './slides/painter.js';
+import { renderMessage } from './slides/message.js';
 import { renderWeather } from './slides/weather.js';
 import { renderMultiWeather } from './slides/multiweather.js';
 import { renderNews } from './slides/news.js';
@@ -25,12 +26,14 @@ export function render(config: SlideTypeConfig, ctx: RenderContext): Grid {
       return renderTicker(config, ctx.quotes ?? [], model);
     case 'painter':
       return renderPainter(config, model);
+    case 'message':
+      return renderMessage(config, model);
     case 'weather':
       return renderWeather(config, ctx.weather, model);
     case 'multiweather':
       return renderMultiWeather(config, ctx.weatherByLocation, model);
     case 'news':
-      return renderNews(config, ctx.news, model);
+      return renderNews(config, ctx.news, model, ctx.newsDigest);
     case 'sports':
       return renderSports(config, ctx.games, model);
   }

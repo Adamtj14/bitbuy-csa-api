@@ -41,6 +41,11 @@ export const slideConfigSchema = z.discriminatedUnion('type', [
     grid: gridSchema,
   }),
   z.object({
+    type: z.literal('message'),
+    text: z.string(),
+    align: z.enum(['left', 'center', 'right']).optional(),
+  }),
+  z.object({
     type: z.literal('weather'),
     locationName: z.string().min(1),
     latitude: z.number().min(-90).max(90),
@@ -65,6 +70,7 @@ export const slideConfigSchema = z.discriminatedUnion('type', [
     type: z.literal('news'),
     feeds: z.array(z.string().url()).min(1),
     title: z.string().optional(),
+    mode: z.enum(['headlines', 'digest']).optional(),
   }),
   z.object({
     type: z.literal('sports'),
@@ -73,6 +79,13 @@ export const slideConfigSchema = z.discriminatedUnion('type', [
     onlyPinned: z.boolean().optional(),
   }),
 ]);
+
+const hhmm = z.string().regex(/^\d{1,2}:\d{2}$/);
+const dayScheduleSchema = z.object({
+  days: z.array(z.number().int().min(0).max(6)).optional(),
+  start: hhmm.optional(),
+  end: hhmm.optional(),
+});
 
 export const slideSchema = z.object({
   id: z.string().min(1),
@@ -83,15 +96,18 @@ export const slideSchema = z.object({
   transition: z
     .enum(['column', 'reverse-column', 'edges-to-center', 'row', 'diagonal', 'random'])
     .optional(),
+  schedule: dayScheduleSchema.optional(),
   createdBy: z.string().optional(),
 });
 
 export const boardConfigSchema = z.object({
   boardModel: z.enum(['flagship', 'note']).optional(),
+  timeZone: z.string().optional(),
   rotation: z.object({
     frequencySeconds: z.number().min(MIN_FREQUENCY_SECONDS),
   }),
   slides: z.array(slideSchema),
+  sleep: dayScheduleSchema.optional(),
 });
 
 export function parseBoardConfig(raw: unknown): BoardConfig {

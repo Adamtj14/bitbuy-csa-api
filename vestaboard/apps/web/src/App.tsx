@@ -23,6 +23,8 @@ import { AdminPanel } from './components/AdminPanel.js';
 import { SlideEditor } from './components/SlideEditor.js';
 import { TransitionGallery } from './components/TransitionDemo.js';
 import { SettingsPanel } from './components/SettingsPanel.js';
+import { ScheduleEditor } from './components/ScheduleEditor.js';
+import { ComposeBar, COMPOSE_SLIDE_ID } from './components/ComposeBar.js';
 import { clampFrequency, exportConfig, newSlide, sampleGrid } from './state.js';
 
 const mockProvider = new MockProvider();
@@ -79,6 +81,11 @@ function usePreviewContext(config: BoardConfig | null, now: Date): RenderContext
     weather: MOCK_WEATHER,
     weatherByLocation,
     news: MOCK_NEWS,
+    newsDigest: [
+      'RATE CUT EXPECTED THIS FALL',
+      'NEW WATERFRONT TRAIL OPENS',
+      'CHIP MAKER BEATS FORECASTS',
+    ],
     games,
   };
 }
@@ -237,6 +244,30 @@ export default function App() {
     });
   };
 
+  const postComposeMessage = (text: string) => {
+    adminUpdate((c) => {
+      const others = c.slides.filter((s) => s.id !== COMPOSE_SLIDE_ID);
+      const minOrder = Math.min(1, ...others.map((s) => s.order)) - 1;
+      return {
+        ...c,
+        slides: [
+          ...others,
+          {
+            id: COMPOSE_SLIDE_ID,
+            name: 'Message',
+            enabled: true,
+            order: minOrder,
+            config: { type: 'message' as const, text },
+            createdBy: me.id,
+          },
+        ],
+      };
+    });
+  };
+
+  const clearComposeMessage = () =>
+    adminUpdate((c) => ({ ...c, slides: c.slides.filter((s) => s.id !== COMPOSE_SLIDE_ID) }));
+
   return (
     <div className="app">
       <header>
@@ -271,6 +302,15 @@ export default function App() {
         </div>
       </header>
       {error && <p className="error">{error}</p>}
+
+      {isAdmin && (
+        <ComposeBar
+          config={config}
+          ctx={ctx}
+          onPost={postComposeMessage}
+          onClear={clearComposeMessage}
+        />
+      )}
 
       {showTransitions && (
         <div
@@ -366,6 +406,32 @@ export default function App() {
               The board's flaps need ~{MIN_FREQUENCY_SECONDS}s between messages, so
               rotation can't go faster than that.
             </p>
+
+            <h2 style={{ marginTop: 16 }}>Time zone</h2>
+            <label className="field">
+              <span>IANA zone (for schedules &amp; sleep)</span>
+              <input
+                placeholder="America/Toronto"
+                disabled={!isAdmin}
+                value={config.timeZone ?? ''}
+                onChange={(e) =>
+                  adminUpdate((c) => ({ ...c, timeZone: e.target.value || undefined }))
+                }
+              />
+            </label>
+            <p className="hint">Blank = the server's local time.</p>
+
+            <h2 style={{ marginTop: 16 }}>Sleep hours</h2>
+            {isAdmin && (
+              <ScheduleEditor
+                schedule={config.sleep}
+                onChange={(sleep) => adminUpdate((c) => ({ ...c, sleep }))}
+              />
+            )}
+            <p className="hint">
+              Inside this window the board goes blank (no overnight flap wear). Leave
+              empty to keep it on 24/7.
+            </p>
           </section>
 
           <section className="panel">
@@ -413,6 +479,7 @@ export default function App() {
                   <button onClick={() => addSlide('multiweather')}>+ Multi-weather</button>
                   <button onClick={() => addSlide('news')}>+ News</button>
                   <button onClick={() => addSlide('sports')}>+ Sports</button>
+                  <button onClick={() => addSlide('message')}>+ Message</button>
                   <button onClick={() => addSlide('painter')}>+ Painter</button>
                 </>
               ) : (

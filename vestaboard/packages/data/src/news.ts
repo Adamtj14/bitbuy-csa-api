@@ -16,7 +16,19 @@ function textOf(value: unknown): string {
   return '';
 }
 
-/** Parse RSS 2.0 or Atom XML into headline items. */
+/** Strip HTML tags/entities and collapse whitespace to plain text. */
+function plain(value: unknown): string | undefined {
+  const raw = textOf(value);
+  if (!raw) return undefined;
+  const text = raw
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text || undefined;
+}
+
+/** Parse RSS 2.0 or Atom XML into headline items (with body detail). */
 export function parseFeed(xml: string): NewsItem[] {
   const doc = parser.parse(xml) as Record<string, any>;
   const channel = doc?.rss?.channel;
@@ -25,6 +37,7 @@ export function parseFeed(xml: string): NewsItem[] {
     return asArray(channel.item).map((item: any) => ({
       title: textOf(item?.title).trim(),
       source,
+      detail: plain(item?.description ?? item?.['content:encoded']),
     }));
   }
   const feed = doc?.feed;
@@ -33,6 +46,7 @@ export function parseFeed(xml: string): NewsItem[] {
     return asArray(feed.entry).map((entry: any) => ({
       title: textOf(entry?.title).trim(),
       source,
+      detail: plain(entry?.summary ?? entry?.content),
     }));
   }
   return [];

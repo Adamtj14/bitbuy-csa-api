@@ -237,6 +237,7 @@ export function apiRouter(options: ApiOptions): Router {
         authHeader: s.vestaboardAuthHeader,
       },
       coingecko: { keySet: Boolean(s.coingeckoApiKey) },
+      anthropic: { keySet: Boolean(s.anthropicApiKey) },
       push: options.getPushStatus?.() ?? null,
     };
   };
@@ -250,6 +251,7 @@ export function apiRouter(options: ApiOptions): Router {
     vestaboardApiUrl: z.string().nullable().optional(),
     vestaboardAuthHeader: z.string().nullable().optional(),
     coingeckoApiKey: z.string().nullable().optional(),
+    anthropicApiKey: z.string().nullable().optional(),
   });
 
   router.put('/api/settings', requireAdmin, (req, res) => {

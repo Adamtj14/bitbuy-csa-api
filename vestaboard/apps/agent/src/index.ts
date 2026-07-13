@@ -3,6 +3,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { Grid, toAscii } from '@vestaboard/core';
 import {
   CoinGeckoProvider,
+  createNewsDigester,
   fetchNews,
   fetchScores,
   fetchWeather,
@@ -61,10 +62,15 @@ function buildSources(log: (m: string) => void): DataSources {
     new YahooProvider(),
   ];
   log(`quote providers: ${providers.map((p) => p.name).join(', ')}`);
+  const digest = createNewsDigester({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    model: process.env.ANTHROPIC_NEWS_MODEL,
+  });
   return {
     getQuotes: (specs) => routeQuotes(providers, specs),
     getWeather: (config) => fetchWeather(config),
     getNews: (feeds) => fetchNews(feeds),
+    getNewsDigest: (feeds) => digest(feeds),
     getScores: (league) => fetchScores(league),
   };
 }

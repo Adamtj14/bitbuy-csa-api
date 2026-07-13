@@ -3,6 +3,7 @@ import {
   Grid,
   League,
   Market,
+  MessageSlideConfig,
   MultiWeatherSlideConfig,
   NewsSlideConfig,
   Slide,
@@ -16,6 +17,7 @@ import {
 } from '@vestaboard/core';
 import { PainterCanvas } from './PainterCanvas.js';
 import { TransitionDemo } from './TransitionDemo.js';
+import { ScheduleEditor } from './ScheduleEditor.js';
 
 const TRANSITIONS: Array<TransitionStrategy | ''> = [
   '', 'column', 'reverse-column', 'edges-to-center', 'row', 'diagonal', 'random',
@@ -66,11 +68,21 @@ export function SlideEditor({ slide, previewGrid, onChange }: SlideEditorProps) 
           </span>
         </div>
       )}
+      <div className="field">
+        <span>Schedule (optional — blank = always in rotation)</span>
+        <ScheduleEditor
+          schedule={slide.schedule}
+          onChange={(schedule) => onChange({ ...slide, schedule })}
+        />
+      </div>
       {slide.config.type === 'clock' && (
         <ClockEditor config={slide.config} onChange={setConfig} />
       )}
       {slide.config.type === 'worldclock' && (
         <WorldClockEditor config={slide.config} onChange={setConfig} />
+      )}
+      {slide.config.type === 'message' && (
+        <MessageEditor config={slide.config} onChange={setConfig} />
       )}
       {slide.config.type === 'ticker' && (
         <TickerEditor config={slide.config} onChange={setConfig} />
@@ -137,6 +149,40 @@ function ClockEditor({
           <span>12-hour</span>
         </label>
       )}
+    </div>
+  );
+}
+
+function MessageEditor({
+  config,
+  onChange,
+}: {
+  config: MessageSlideConfig;
+  onChange: (c: SlideTypeConfig) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <label className="field">
+        <span>Message</span>
+        <textarea
+          rows={2}
+          value={config.text}
+          onChange={(e) => onChange({ ...config, text: e.target.value })}
+        />
+      </label>
+      <label className="field">
+        <span>Align</span>
+        <select
+          value={config.align ?? 'center'}
+          onChange={(e) =>
+            onChange({ ...config, align: e.target.value as 'left' | 'center' | 'right' })
+          }
+        >
+          <option value="center">Center</option>
+          <option value="left">Left</option>
+          <option value="right">Right</option>
+        </select>
+      </label>
     </div>
   );
 }
@@ -291,6 +337,18 @@ function NewsEditor({
           value={config.title ?? ''}
           onChange={(e) => onChange({ ...config, title: e.target.value || undefined })}
         />
+      </label>
+      <label className="field">
+        <span>Mode</span>
+        <select
+          value={config.mode ?? 'headlines'}
+          onChange={(e) =>
+            onChange({ ...config, mode: e.target.value as 'headlines' | 'digest' })
+          }
+        >
+          <option value="headlines">Headlines (raw)</option>
+          <option value="digest">AI digest (needs Anthropic key)</option>
+        </select>
       </label>
       <span style={{ fontSize: 13, opacity: 0.8 }}>RSS/Atom feeds (first working one wins)</span>
       {config.feeds.map((feed, i) => (

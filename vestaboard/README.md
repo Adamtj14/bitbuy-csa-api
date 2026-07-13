@@ -25,7 +25,7 @@ the board shows.
 
 | Path | What it is |
 | --- | --- |
-| `packages/core` | Pure render library: character codes, 6×22 grid helpers, text layout, shared zod config schema, and the slide renderers (clock, world clock, ticker, painter, weather, multi-weather, news, sports). No I/O. |
+| `packages/core` | Pure render library: character codes, 6×22 grid helpers, text layout, shared zod config schema, the slide renderers (clock, world clock, ticker, painter, message, weather, multi-weather, news, sports), and scheduling helpers. No I/O. |
 | `packages/data` | Data fetchers: CoinGecko (crypto, CAD/USD pairs, keyless), Yahoo Finance (US + TMX stocks), Open-Meteo weather, RSS/Atom headlines, ESPN scoreboards, plus deterministic mocks. |
 | `apps/agent` | Daemon for a Raspberry Pi on the board's LAN: rotation scheduler, per-type data hub with TTL caching, Local API client. |
 | `apps/server` | Hosted API on the VPS: Google OAuth, invites + admin/member roles, SQLite-backed board config, bearer-token endpoint the agent polls. |
@@ -55,6 +55,23 @@ the board shows.
   demo under each slide's transition picker); the board firmware performs the
   real flip. The ordering is a pure, tested helper (`transitionSteps` in
   `packages/core`) shared by every preview.
+
+## Scheduling, compose, and the news digest
+
+- **Schedules & sleep hours** — each slide can carry a day/time window (Board →
+  a slide's *Schedule*); outside it the slide drops out of rotation. A board-wide
+  **Sleep hours** window blanks the board entirely (no overnight flap wear). Both
+  are evaluated in the board's **Time zone** (Board panel; defaults to the host's
+  zone). The pure helpers live in `packages/core/src/schedule.ts` and are shared
+  by the server pusher and the Pi agent.
+- **Message the board** — a compose box pinned to the top of the home screen
+  (admins). Posting drives a single **Message** slide at the front of the
+  rotation; Clear removes it.
+- **News digest** — a news slide's *Mode* can be **AI digest**: headlines are
+  distilled by Claude into board-sized lines, cached and refreshed every ~2h.
+  Set an **Anthropic API key** in Settings to enable it (default model
+  `claude-haiku-4-5`; ~12 tiny calls/day). Without a key, news shows raw
+  headlines.
 
 ## One-time board setup (Local API enablement)
 

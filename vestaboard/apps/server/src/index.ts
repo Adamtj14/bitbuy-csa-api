@@ -80,6 +80,7 @@ app.listen(PORT, () => {
     getConfig: () => store.getConfig(),
     sources: buildSources(process.env, {
       coingeckoApiKey: store.getSettings().coingeckoApiKey ?? undefined,
+      anthropicApiKey: store.getSettings().anthropicApiKey ?? undefined,
     }),
     getClient: () => {
       const s = store.getSettings();

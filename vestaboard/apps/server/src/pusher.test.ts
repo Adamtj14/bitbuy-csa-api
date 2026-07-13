@@ -16,6 +16,7 @@ const emptySources: DataSources = {
     daily: [],
   }),
   getNews: async () => [],
+  getNewsDigest: async () => [],
   getScores: async () => [],
 };
 
@@ -136,6 +137,27 @@ describe('BoardPusher', () => {
     expect(pusher.getStatus().pushEnabled).toBe(true);
     expect(statuses).toContain(false);
     expect(statuses).toContain(true);
+  });
+
+  it('blanks the board during sleep hours', async () => {
+    const cfg = painter(5);
+    cfg.timeZone = 'UTC'; // harness now() = 00:16:40 UTC
+    cfg.sleep = { start: '00:00', end: '06:00' };
+    const h = harness(cfg);
+    await h.pusher.tick();
+    expect(h.pushes).toHaveLength(1);
+    expect(h.pushes[0]!.every((row) => row.every((c) => c === 0))).toBe(true);
+    expect(h.logs.some((l) => l.includes('asleep'))).toBe(true);
+  });
+
+  it('skips slides outside their schedule', async () => {
+    const cfg = painter(5);
+    cfg.timeZone = 'UTC';
+    cfg.slides.forEach((s) => (s.schedule = { start: '09:00', end: '10:00' }));
+    const h = harness(cfg);
+    await h.pusher.tick();
+    expect(h.pushes).toHaveLength(0);
+    expect(h.logs.some((l) => l.includes('no active slides'))).toBe(true);
   });
 
   it('survives a rate-limited push', async () => {

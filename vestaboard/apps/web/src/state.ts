@@ -72,6 +72,8 @@ export function newSlide(
       };
     case 'painter':
       return { ...base, name: 'Painter', config: { type: 'painter', grid: blankGrid(model) } };
+    case 'message':
+      return { ...base, name: 'Message', config: { type: 'message', text: 'HELLO' } };
     case 'weather':
       return {
         ...base,

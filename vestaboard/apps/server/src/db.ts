@@ -34,6 +34,7 @@ export interface AppSettings {
   vestaboardApiUrl: string | null;
   vestaboardAuthHeader: string | null;
   coingeckoApiKey: string | null;
+  anthropicApiKey: string | null;
 }
 
 const SETTING_KEYS: Record<keyof AppSettings, string> = {
@@ -41,6 +42,7 @@ const SETTING_KEYS: Record<keyof AppSettings, string> = {
   vestaboardApiUrl: 'vestaboard_api_url',
   vestaboardAuthHeader: 'vestaboard_auth_header',
   coingeckoApiKey: 'coingecko_api_key',
+  anthropicApiKey: 'anthropic_api_key',
 };
 
 const DEFAULT_CONFIG: BoardConfig = {
@@ -275,6 +277,7 @@ export class Store {
       vestaboardApiUrl: this.getSetting(SETTING_KEYS.vestaboardApiUrl),
       vestaboardAuthHeader: this.getSetting(SETTING_KEYS.vestaboardAuthHeader),
       coingeckoApiKey: this.getSetting(SETTING_KEYS.coingeckoApiKey),
+      anthropicApiKey: this.getSetting(SETTING_KEYS.anthropicApiKey),
     };
   }
 

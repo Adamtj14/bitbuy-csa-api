@@ -50,6 +50,13 @@ export interface PainterSlideConfig {
   grid: Grid;
 }
 
+/** A free-text message, word-wrapped onto the board. */
+export interface MessageSlideConfig {
+  type: 'message';
+  text: string;
+  align?: 'left' | 'center' | 'right';
+}
+
 export interface WeatherSlideConfig {
   type: 'weather';
   /** Display name for the location row, e.g. "TORONTO". */
@@ -80,6 +87,11 @@ export interface NewsSlideConfig {
   /** RSS/Atom feed URLs, tried in order. */
   feeds: string[];
   title?: string;
+  /**
+   * 'headlines' (default) lists raw headlines; 'digest' shows an
+   * AI-distilled summary sized to the board (needs an Anthropic key).
+   */
+  mode?: 'headlines' | 'digest';
 }
 
 export type League = 'nhl' | 'nba' | 'mlb' | 'nfl';
@@ -98,6 +110,7 @@ export type SlideTypeConfig =
   | WorldClockSlideConfig
   | TickerSlideConfig
   | PainterSlideConfig
+  | MessageSlideConfig
   | WeatherSlideConfig
   | MultiWeatherSlideConfig
   | NewsSlideConfig
@@ -115,6 +128,17 @@ export type TransitionStrategy =
   | 'diagonal'
   | 'random';
 
+/**
+ * A recurring time window. Empty = always. `days` are 0 (Sunday) – 6
+ * (Saturday); `start`/`end` are "HH:MM" 24-hour local to the board's zone.
+ * A window where start > end wraps past midnight (e.g. 22:00–06:00).
+ */
+export interface DaySchedule {
+  days?: number[];
+  start?: string;
+  end?: string;
+}
+
 export interface Slide {
   id: string;
   name: string;
@@ -122,6 +146,8 @@ export interface Slide {
   order: number;
   config: SlideTypeConfig;
   transition?: TransitionStrategy;
+  /** Only rotate this slide inside this window (empty/absent = always). */
+  schedule?: DaySchedule;
   /** User id of the creator; members may only edit their own slides. */
   createdBy?: string;
 }
@@ -135,8 +161,12 @@ export interface RotationSettings {
 export interface BoardConfig {
   /** Which physical board this config targets. Default 'flagship'. */
   boardModel?: BoardModel;
+  /** IANA zone used to evaluate schedules and sleep (default: host local). */
+  timeZone?: string;
   rotation: RotationSettings;
   slides: Slide[];
+  /** When the current time is inside this window, the board goes blank. */
+  sleep?: DaySchedule;
 }
 
 export interface Quote {
@@ -170,6 +200,8 @@ export interface WeatherData {
 export interface NewsItem {
   title: string;
   source?: string;
+  /** Longer body/summary text from the feed, used to distill a digest. */
+  detail?: string;
 }
 
 export type GameState = 'pre' | 'live' | 'final';
@@ -193,6 +225,8 @@ export interface RenderContext {
   /** Weather per location, keyed "lat,long" — for the multi-weather slide. */
   weatherByLocation?: Record<string, WeatherData>;
   news?: NewsItem[];
+  /** Board-width lines of an AI-distilled news digest (digest mode). */
+  newsDigest?: string[];
   games?: Game[];
 }
 

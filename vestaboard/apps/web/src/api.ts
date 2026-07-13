@@ -33,6 +33,7 @@ export interface PushStatus {
 export interface SettingsInfo {
   vestaboard: { keySet: boolean; apiUrl: string | null; authHeader: string | null };
   coingecko: { keySet: boolean };
+  anthropic: { keySet: boolean };
   push: PushStatus | null;
 }
 
@@ -41,6 +42,7 @@ export interface SettingsPatch {
   vestaboardApiUrl?: string | null;
   vestaboardAuthHeader?: string | null;
   coingeckoApiKey?: string | null;
+  anthropicApiKey?: string | null;
 }
 
 export class ApiError extends Error {

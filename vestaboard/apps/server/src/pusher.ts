@@ -1,8 +1,11 @@
 import {
+  activeSlides,
+  blankGrid,
   BoardConfig,
   Game,
   Grid,
   gridsEqual,
+  isSleeping,
   League,
   locationKey,
   MIN_FREQUENCY_SECONDS,
@@ -94,6 +97,7 @@ export class BoardPusher {
     slide: Slide,
     enabled: Slide[],
     now: Date,
+    model: RenderContext['model'],
   ): Promise<RenderContext> {
     const nowMs = now.getTime();
     const quoteTtl = this.options.quoteTtlSeconds ?? 60;
@@ -141,6 +145,10 @@ export class BoardPusher {
             this.news.set(key, { value: await sources.getNews(config.feeds), fetchedAt: nowMs });
           }
           ctx.news = this.news.get(key)?.value;
+          if (config.mode === 'digest') {
+            // The digester caches its own 2h result; safe to call each tick.
+            ctx.newsDigest = await sources.getNewsDigest(config.feeds, model);
+          }
           break;
         }
         case 'sports': {
@@ -156,6 +164,7 @@ export class BoardPusher {
         case 'clock':
         case 'worldclock':
         case 'painter':
+        case 'message':
           break;
       }
     } catch (err) {
@@ -198,49 +207,63 @@ export class BoardPusher {
     }
     this.emitStatus({ pushEnabled: true });
 
-    const enabled = config.slides
-      .filter((s) => s.enabled)
-      .sort((a, b) => a.order - b.order);
+    const freqMs = Math.max(config.rotation.frequencySeconds, MIN_FREQUENCY_SECONDS) * 1000;
 
-    if (enabled.length === 0) {
-      this.deps.log('no enabled slides — nothing to push');
-      return Math.max(config.rotation.frequencySeconds, MIN_FREQUENCY_SECONDS) * 1000;
+    // Sleep window: blank the board (pushed once thanks to the identical-grid
+    // skip) and idle, so the flaps aren't cycling overnight.
+    if (isSleeping(config, now)) {
+      const blank = blankGrid(config.boardModel ?? 'flagship');
+      await this.pushGrid(client, blank, 'asleep (sleep hours)');
+      return Math.min(freqMs, 60_000);
     }
 
-    const freqMs = Math.max(config.rotation.frequencySeconds, MIN_FREQUENCY_SECONDS) * 1000;
+    const enabled = activeSlides(config, now);
+    if (enabled.length === 0) {
+      this.deps.log('no active slides right now — nothing to push');
+      return Math.min(freqMs, 60_000);
+    }
     if (this.slideIndex < 0 || nowMs - this.lastAdvanceAt >= freqMs) {
       this.slideIndex = (this.slideIndex + 1) % enabled.length;
       this.lastAdvanceAt = nowMs;
     }
     const slide = enabled[this.slideIndex % enabled.length]!;
 
-    const ctx = await this.buildContext(slide, enabled, now);
-    ctx.model = config.boardModel ?? 'flagship';
+    const model = config.boardModel ?? 'flagship';
+    const ctx = await this.buildContext(slide, enabled, now, model);
+    ctx.model = model;
     const grid = render(slide.config, ctx);
+    await this.pushGrid(client, grid, slide.name);
+    return Math.max(Math.min(freqMs, 60_000), MIN_FREQUENCY_SECONDS * 1000);
+  }
 
+  /** Push a grid, skipping if the board already shows it; updates status. */
+  private async pushGrid(
+    client: Pick<VestaboardCloudClient, 'postMessage'>,
+    grid: Grid,
+    label: string,
+  ): Promise<void> {
     if (this.lastPushed && gridsEqual(grid, this.lastPushed)) {
-      this.deps.log(`skip "${slide.name}" (board already shows this grid)`);
-    } else {
-      try {
-        await client.postMessage(grid);
-        this.lastPushed = grid;
-        this.deps.log(`pushed "${slide.name}"`);
-        this.emitStatus({
-          lastPushedSlide: slide.name,
-          lastPushAt: new Date(nowMs).toISOString(),
-          lastError: null,
-        });
-      } catch (err) {
-        if (err instanceof RateLimitedError) {
-          this.deps.log(`rate limited pushing "${slide.name}", retrying next tick`);
-          this.emitStatus({ lastError: 'rate limited by Vestaboard, retrying' });
-        } else {
-          this.deps.log(`push failed for "${slide.name}": ${String(err)}`);
-          this.emitStatus({ lastError: String(err) });
-        }
+      this.deps.log(`skip "${label}" (board already shows this grid)`);
+      return;
+    }
+    try {
+      await client.postMessage(grid);
+      this.lastPushed = grid;
+      this.deps.log(`pushed "${label}"`);
+      this.emitStatus({
+        lastPushedSlide: label,
+        lastPushAt: this.deps.now().toISOString(),
+        lastError: null,
+      });
+    } catch (err) {
+      if (err instanceof RateLimitedError) {
+        this.deps.log(`rate limited pushing "${label}", retrying next tick`);
+        this.emitStatus({ lastError: 'rate limited by Vestaboard, retrying' });
+      } else {
+        this.deps.log(`push failed for "${label}": ${String(err)}`);
+        this.emitStatus({ lastError: String(err) });
       }
     }
-    return Math.max(Math.min(freqMs, 60_000), MIN_FREQUENCY_SECONDS * 1000);
   }
 
   async run(sleep: (ms: number) => Promise<void>): Promise<void> {

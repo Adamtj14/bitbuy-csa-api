@@ -15,6 +15,8 @@ export interface DataSources {
   getQuotes(specs: SymbolSpec[]): Promise<Quote[]>;
   getWeather(config: Pick<WeatherSlideConfig, 'latitude' | 'longitude'>): Promise<WeatherData>;
   getNews(feeds: string[]): Promise<NewsItem[]>;
+  /** AI-distilled board lines; [] when no Anthropic key is configured. */
+  getNewsDigest?(feeds: string[]): Promise<string[]>;
   getScores(league: League): Promise<Game[]>;
 }
 
@@ -127,6 +129,13 @@ export class DataHub {
           }
         }
         ctx.news = this.news.get(key)?.value;
+        if (config.mode === 'digest' && this.sources.getNewsDigest) {
+          try {
+            ctx.newsDigest = await this.sources.getNewsDigest(config.feeds);
+          } catch (err) {
+            this.log(`news digest failed, using headlines: ${String(err)}`);
+          }
+        }
         break;
       }
       case 'sports': {
@@ -146,6 +155,7 @@ export class DataHub {
       case 'clock':
       case 'worldclock':
       case 'painter':
+      case 'message':
         break;
     }
     return ctx;

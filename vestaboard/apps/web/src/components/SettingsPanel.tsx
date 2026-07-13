@@ -16,6 +16,7 @@ export function SettingsPanel() {
   const [apiUrl, setApiUrl] = useState('');
   const [authHeader, setAuthHeader] = useState('');
   const [coingeckoKey, setCoingeckoKey] = useState('');
+  const [anthropicKey, setAnthropicKey] = useState('');
   const [advanced, setAdvanced] = useState(false);
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -51,9 +52,11 @@ export function SettingsPanel() {
         vestaboardApiUrl: apiUrl.trim() || null,
         vestaboardAuthHeader: authHeader.trim() || null,
         ...(coingeckoKey.trim() ? { coingeckoApiKey: coingeckoKey.trim() } : {}),
+        ...(anthropicKey.trim() ? { anthropicApiKey: anthropicKey.trim() } : {}),
       });
       setKey('');
       setCoingeckoKey('');
+      setAnthropicKey('');
       setNote('Saved.');
       await load();
     } catch (e) {
@@ -161,6 +164,20 @@ export function SettingsPanel() {
           <p className="hint">
             Crypto quotes use CoinGecko's free API with no key. A demo key just raises the
             rate limit. (Changing it applies on the next server restart.)
+          </p>
+          <label className="field">
+            <span>Anthropic API key (news digest)</span>
+            <input
+              type="password"
+              autoComplete="off"
+              placeholder={info.anthropic.keySet ? '•••••••• (set)' : 'sk-ant-… enables the AI news digest'}
+              value={anthropicKey}
+              onChange={(e) => setAnthropicKey(e.target.value)}
+            />
+          </label>
+          <p className="hint">
+            Powers the “digest” news mode — headlines distilled into board-sized lines,
+            refreshed every 2 hours (~pennies/day). Without it, news shows raw headlines.
           </p>
         </div>
       )}

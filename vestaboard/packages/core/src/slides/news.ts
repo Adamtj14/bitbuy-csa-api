@@ -18,6 +18,7 @@ export function renderNews(
   config: NewsSlideConfig,
   news?: NewsItem[],
   model: BoardModel = 'flagship',
+  digest?: string[],
 ): Grid {
   const { rows, cols } = dimsOf(model);
   const grid = blankGrid(model);
@@ -25,6 +26,16 @@ export function renderNews(
   if (config.title && rows > 3) {
     grid[row++] = encodeLine(config.title, 'center', cols);
   }
+
+  // Digest mode: print the AI-distilled lines as-is (already board-width).
+  if (config.mode === 'digest' && digest && digest.length > 0) {
+    for (const line of digest) {
+      if (row >= rows) break;
+      grid[row++] = encodeLine(line.slice(0, cols), 'left', cols);
+    }
+    return grid;
+  }
+
   if (!news || news.length === 0) {
     grid[Math.min(row + 1, rows - 1)] = encodeLine('NEWS PENDING . . .', 'center', cols);
     return grid;

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { blankGrid, BoardConfig, Grid } from '@vestaboard/core';
+import { blankGrid, BoardConfig, Game, Grid } from '@vestaboard/core';
 import { RateLimitedError, VestaboardCloudClient } from './vestaboard.js';
 import { BoardPusher, PusherDeps } from './pusher.js';
 import { DataSources } from './sources.js';
@@ -178,5 +178,82 @@ describe('BoardPusher', () => {
     const pusher = new BoardPusher(deps);
     await expect(pusher.tick()).resolves.toBeGreaterThan(0);
     expect(calls).toBe(1);
+  });
+
+  it('interrupts the rotation when a tracked score changes, then resumes one slide on', async () => {
+    const grid = (code: number) =>
+      blankGrid('flagship').map((r, i) => (i === 0 ? [code, ...r.slice(1)] : r));
+    const config: BoardConfig = {
+      rotation: { frequencySeconds: 30 },
+      slides: [
+        { id: 'a', name: 'A', enabled: true, order: 1, config: { type: 'painter', grid: grid(10) } },
+        { id: 'b', name: 'B', enabled: true, order: 2, config: { type: 'painter', grid: grid(11) } },
+        { id: 'c', name: 'C', enabled: true, order: 3, config: { type: 'painter', grid: grid(12) } },
+        { id: 'scores', name: 'Scores', enabled: true, order: 4, config: { type: 'sports', league: 'nhl', teams: ['TOR'] } },
+      ],
+    };
+    let scores: Game[] = [
+      { league: 'nhl', away: { abbrev: 'TOR', score: 0 }, home: { abbrev: 'BOS', score: 0 }, state: 'live', statusText: 'P1' },
+    ];
+    let ms = 1_000_000;
+    const pushed: string[] = [];
+    const deps: PusherDeps = {
+      getConfig: () => config,
+      sources: { ...emptySources, getScores: async () => scores },
+      getClient: () => ({ postMessage: async () => {} }),
+      now: () => new Date(ms),
+      log: (m) => {
+        const hit = /^pushed "(.+)"$/.exec(m);
+        if (hit) pushed.push(hit[1]!);
+      },
+    };
+    const pusher = new BoardPusher(deps);
+
+    await pusher.tick(); // A (records baseline 0-0, no interrupt on first sight)
+    ms += 30_000;
+    await pusher.tick(); // B
+    expect(pushed).toEqual(['A', 'B']);
+
+    // A goal for the tracked team, then enough time for the next score poll.
+    scores = [
+      { league: 'nhl', away: { abbrev: 'TOR', score: 1 }, home: { abbrev: 'BOS', score: 0 }, state: 'live', statusText: 'P1' },
+    ];
+    ms += 30_000;
+    await pusher.tick(); // score change → Scores overtakes the board out of turn
+    expect(pushed[pushed.length - 1]).toBe('Scores (score update)');
+
+    // After the hold, rotation resumes one slide past B → C (not back to A).
+    ms += 30_000;
+    await pusher.tick();
+    expect(pushed[pushed.length - 1]).toBe('C');
+  });
+
+  it('does not interrupt on the first score poll (no baseline yet)', async () => {
+    const config: BoardConfig = {
+      rotation: { frequencySeconds: 30 },
+      slides: [
+        { id: 'scores', name: 'Scores', enabled: true, order: 1, config: { type: 'sports', league: 'nhl', teams: ['TOR'] } },
+        { id: 'a', name: 'A', enabled: true, order: 2, config: { type: 'painter', grid: blankGrid() } },
+      ],
+    };
+    const scores: Game[] = [
+      { league: 'nhl', away: { abbrev: 'TOR', score: 2 }, home: { abbrev: 'BOS', score: 1 }, state: 'live', statusText: 'P2' },
+    ];
+    const labels: string[] = [];
+    let ms = 1_000_000;
+    const pusher = new BoardPusher({
+      getConfig: () => config,
+      sources: { ...emptySources, getScores: async () => scores },
+      getClient: () => ({ postMessage: async () => {} }),
+      now: () => new Date(ms),
+      log: (m) => {
+        const hit = /^pushed "(.+)"$/.exec(m);
+        if (hit) labels.push(hit[1]!);
+      },
+    });
+    await pusher.tick();
+    ms += 30_000;
+    await pusher.tick();
+    expect(labels.some((l) => l.includes('score update'))).toBe(false);
   });
 });

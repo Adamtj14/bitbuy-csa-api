@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  activeSlides,
+  blankGrid,
   BoardConfig,
   BoardModel,
+  isSleeping,
   locationKey,
   MIN_FREQUENCY_SECONDS,
   RenderContext,
@@ -90,6 +93,48 @@ function usePreviewContext(config: BoardConfig | null, now: Date): RenderContext
   };
 }
 
+/** A live view of what the board is showing: cycles the active slides like
+ *  the pusher does, and blanks during sleep hours. */
+function OnAirPreview({ config, ctx }: { config: BoardConfig; ctx: RenderContext }) {
+  const model = config.boardModel ?? 'flagship';
+  const freqMs = Math.max(config.rotation.frequencySeconds, MIN_FREQUENCY_SECONDS) * 1000;
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setIdx((i) => i + 1), freqMs);
+    return () => clearInterval(id);
+  }, [freqMs]);
+
+  const sleeping = isSleeping(config, ctx.now);
+  const active = activeSlides(config, ctx.now);
+
+  if (sleeping) {
+    return (
+      <>
+        <BoardPreview grid={blankGrid(model)} />
+        <p className="hint">Asleep (sleep hours) — the board is blank right now.</p>
+      </>
+    );
+  }
+  if (active.length === 0) {
+    return (
+      <>
+        <BoardPreview grid={blankGrid(model)} />
+        <p className="hint">Nothing scheduled to show right now.</p>
+      </>
+    );
+  }
+  const slide = active[idx % active.length]!;
+  return (
+    <>
+      <BoardPreview grid={render(slide.config, ctx)} />
+      <p className="hint">
+        Showing “{slide.name}” · rotates every {Math.round(freqMs / 1000)}s through{' '}
+        {active.length} slide{active.length > 1 ? 's' : ''}.
+      </p>
+    </>
+  );
+}
+
 type SaveState = 'saved' | 'saving' | 'error';
 
 export default function App() {
@@ -100,6 +145,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [showTransitions, setShowTransitions] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
   const now = useNow();
@@ -112,7 +158,6 @@ export default function App() {
         setMe(user);
         return api.getConfig().then((c) => {
           setConfig(c);
-          setSelectedId(c.slides[0]?.id ?? null);
         });
       })
       .catch(() => setMe(null));
@@ -148,7 +193,7 @@ export default function App() {
   if (!config) return <div className="app">Loading config…</div>;
 
   const slides = [...config.slides].sort((a, b) => a.order - b.order);
-  const selected = slides.find((s) => s.id === selectedId) ?? slides[0] ?? null;
+  const selected = slides.find((s) => s.id === selectedId) ?? null;
   const canEdit = (slide: Slide) =>
     isAdmin || (slide.createdBy === me.id && slide.config.type === 'painter');
 
@@ -268,50 +313,162 @@ export default function App() {
   const clearComposeMessage = () =>
     adminUpdate((c) => ({ ...c, slides: c.slides.filter((s) => s.id !== COMPOSE_SLIDE_ID) }));
 
+  const addButtons = isAdmin
+    ? ([
+        ['clock', '+ Clock'],
+        ['worldclock', '+ World clock'],
+        ['ticker', '+ Ticker'],
+        ['weather', '+ Weather'],
+        ['multiweather', '+ Multi-weather'],
+        ['news', '+ News'],
+        ['sports', '+ Sports'],
+        ['message', '+ Message'],
+        ['painter', '+ Painter'],
+      ] as const)
+    : ([['painter', '+ Painter']] as const);
+
   return (
     <div className="app">
-      <header>
+      <div className="topbar">
+        <button className="menu-btn" aria-label="Menu" onClick={() => setMenuOpen(true)}>
+          ☰
+        </button>
         <h1>Vestaboard Studio</h1>
-        <div className="header-actions">
-          <span className="save-state">
-            {saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Save failed' : 'Saved'}
-          </span>
-          <button onClick={() => setShowTransitions(true)}>Transition demos</button>
-          {isAdmin && <button onClick={() => setShowSettings(true)}>Settings</button>}
-          <button onClick={() => exportConfig(config)}>Export slides.json</button>
-          {isAdmin && (
-            <>
-              <button onClick={() => fileInput.current?.click()}>Import</button>
-              <input
-                ref={fileInput}
-                type="file"
-                accept="application/json"
-                hidden
-                onChange={(e) => e.target.files?.[0] && importConfig(e.target.files[0])}
-              />
-            </>
-          )}
-          <span className="whoami">
-            {me.name || me.email} · {me.role}
-          </span>
-          <button
-            onClick={() => api.logout().then(() => window.location.reload())}
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
+        <span className="save-state">
+          {saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Save failed' : 'Saved'}
+        </span>
+      </div>
       {error && <p className="error">{error}</p>}
 
-      {isAdmin && (
-        <ComposeBar
-          config={config}
-          ctx={ctx}
-          onPost={postComposeMessage}
-          onClear={clearComposeMessage}
-        />
+      {/* Hidden import picker (triggered from the menu) */}
+      <input
+        ref={fileInput}
+        type="file"
+        accept="application/json"
+        hidden
+        onChange={(e) => e.target.files?.[0] && importConfig(e.target.files[0])}
+      />
+
+      {/* ---- Hamburger drawer ---- */}
+      {menuOpen && (
+        <div className="drawer-backdrop" onClick={() => setMenuOpen(false)} role="presentation">
+          <nav className="drawer" onClick={(e) => e.stopPropagation()} aria-label="Menu">
+            <div className="drawer-head">
+              <h2>Menu</h2>
+              <button onClick={() => setMenuOpen(false)}>✕</button>
+            </div>
+            <div className="drawer-user">
+              {me.name || me.email} · {me.role}
+            </div>
+
+            <button
+              className="drawer-item"
+              onClick={() => {
+                setShowTransitions(true);
+                setMenuOpen(false);
+              }}
+            >
+              Transition demos
+            </button>
+            {isAdmin && (
+              <button
+                className="drawer-item"
+                onClick={() => {
+                  setShowSettings(true);
+                  setMenuOpen(false);
+                }}
+              >
+                Settings &amp; keys
+              </button>
+            )}
+            <button className="drawer-item" onClick={() => exportConfig(config)}>
+              Export slides.json
+            </button>
+            {isAdmin && (
+              <button
+                className="drawer-item"
+                onClick={() => {
+                  fileInput.current?.click();
+                  setMenuOpen(false);
+                }}
+              >
+                Import slides.json
+              </button>
+            )}
+
+            {isAdmin && (
+              <section className="drawer-section">
+                <h2>Board</h2>
+                <label className="field">
+                  <span>Model</span>
+                  <select
+                    value={config.boardModel ?? 'flagship'}
+                    onChange={(e) =>
+                      adminUpdate((c) => ({ ...c, boardModel: e.target.value as BoardModel }))
+                    }
+                  >
+                    <option value="flagship">Vestaboard (6 x 22)</option>
+                    <option value="note">Vestaboard Note (3 x 15)</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Seconds per slide</span>
+                  <input
+                    type="number"
+                    min={MIN_FREQUENCY_SECONDS}
+                    value={config.rotation.frequencySeconds}
+                    onChange={(e) =>
+                      adminUpdate((c) => ({
+                        ...c,
+                        rotation: { frequencySeconds: Number(e.target.value) },
+                      }))
+                    }
+                    onBlur={(e) =>
+                      adminUpdate((c) => ({
+                        ...c,
+                        rotation: { frequencySeconds: clampFrequency(Number(e.target.value)) },
+                      }))
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>Time zone (IANA)</span>
+                  <input
+                    placeholder="America/Toronto"
+                    value={config.timeZone ?? ''}
+                    onChange={(e) =>
+                      adminUpdate((c) => ({ ...c, timeZone: e.target.value || undefined }))
+                    }
+                  />
+                </label>
+                <span className="field-label">Sleep hours</span>
+                <ScheduleEditor
+                  schedule={config.sleep}
+                  onChange={(sleep) => adminUpdate((c) => ({ ...c, sleep }))}
+                />
+                <p className="hint">
+                  Inside this window the board goes blank (no overnight flap wear).
+                </p>
+              </section>
+            )}
+
+            {isAdmin && (
+              <section className="drawer-section">
+                <AdminPanel me={me} />
+              </section>
+            )}
+
+            <button
+              className="drawer-item danger"
+              onClick={() => api.logout().then(() => window.location.reload())}
+            >
+              Sign out
+            </button>
+          </nav>
+        </div>
       )}
 
+      {/* ---- Modals ---- */}
       {showTransitions && (
         <div
           className="modal-backdrop"
@@ -359,178 +516,111 @@ export default function App() {
         </div>
       )}
 
-      <div className="columns">
-        <aside>
-          <section className="panel">
-            <h2>Board</h2>
-            <label className="field">
-              <span>Model</span>
-              <select
-                disabled={!isAdmin}
-                value={config.boardModel ?? 'flagship'}
-                onChange={(e) =>
-                  adminUpdate((c) => ({ ...c, boardModel: e.target.value as BoardModel }))
-                }
+      {/* ---- Focused main: what's live, instant push, what can go up ---- */}
+      <main className="home">
+        <section className="panel onair">
+          <h2>On the board now</h2>
+          <OnAirPreview config={config} ctx={ctx} />
+        </section>
+
+        {isAdmin && (
+          <ComposeBar
+            config={config}
+            ctx={ctx}
+            onPost={postComposeMessage}
+            onClear={clearComposeMessage}
+          />
+        )}
+
+        <section className="panel">
+          <h2>Slides</h2>
+          <p className="hint" style={{ marginTop: 0 }}>
+            Tap a slide to preview and edit it. {isAdmin ? 'Toggle the checkbox to put it in rotation.' : ''}
+          </p>
+          <ul className="slide-list">
+            {slides.map((slide, i) => (
+              <li
+                key={slide.id}
+                className={selected?.id === slide.id ? 'selected' : ''}
+                onClick={() => setSelectedId(slide.id)}
               >
-                <option value="flagship">Vestaboard (6 x 22)</option>
-                <option value="note">Vestaboard Note (3 x 15)</option>
-              </select>
-            </label>
+                <input
+                  type="checkbox"
+                  checked={slide.enabled}
+                  disabled={!isAdmin}
+                  title={isAdmin ? 'Show in rotation' : 'Only admins control rotation'}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => updateSlide({ ...slide, enabled: e.target.checked })}
+                />
+                <div className="thumb">
+                  <BoardPreview grid={render(slide.config, ctx)} scale="thumbnail" />
+                </div>
+                <span className="slide-name">{slide.name}</span>
+                <span className="slide-actions">
+                  {isAdmin && (
+                    <>
+                      <button disabled={i === 0} onClick={(e) => { e.stopPropagation(); move(slide.id, -1); }}>↑</button>
+                      <button disabled={i === slides.length - 1} onClick={(e) => { e.stopPropagation(); move(slide.id, 1); }}>↓</button>
+                    </>
+                  )}
+                  {canEdit(slide) && (
+                    <button onClick={(e) => { e.stopPropagation(); removeSlide(slide.id); }}>✕</button>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="add-buttons">
+            {addButtons.map(([type, label]) => (
+              <button key={type} onClick={() => addSlide(type)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {!isAdmin && (
             <p className="hint">
-              Previews, the painter and the agent all render for this model. Painter
-              slides drawn for one model show blank on the other.
+              Members can draw painter slides; an admin enables them on the board.
             </p>
-            <h2 style={{ marginTop: 16 }}>Rotation</h2>
-            <label className="field">
-              <span>Seconds per slide</span>
-              <input
-                type="number"
-                min={MIN_FREQUENCY_SECONDS}
-                disabled={!isAdmin}
-                value={config.rotation.frequencySeconds}
-                onChange={(e) =>
-                  adminUpdate((c) => ({
-                    ...c,
-                    rotation: { frequencySeconds: Number(e.target.value) },
-                  }))
-                }
-                onBlur={(e) =>
-                  adminUpdate((c) => ({
-                    ...c,
-                    rotation: { frequencySeconds: clampFrequency(Number(e.target.value)) },
-                  }))
-                }
-              />
-            </label>
-            <p className="hint">
-              The board's flaps need ~{MIN_FREQUENCY_SECONDS}s between messages, so
-              rotation can't go faster than that.
-            </p>
+          )}
+        </section>
+      </main>
 
-            <h2 style={{ marginTop: 16 }}>Time zone</h2>
-            <label className="field">
-              <span>IANA zone (for schedules &amp; sleep)</span>
-              <input
-                placeholder="America/Toronto"
-                disabled={!isAdmin}
-                value={config.timeZone ?? ''}
-                onChange={(e) =>
-                  adminUpdate((c) => ({ ...c, timeZone: e.target.value || undefined }))
-                }
-              />
-            </label>
-            <p className="hint">Blank = the server's local time.</p>
-
-            <h2 style={{ marginTop: 16 }}>Sleep hours</h2>
-            {isAdmin && (
-              <ScheduleEditor
-                schedule={config.sleep}
-                onChange={(sleep) => adminUpdate((c) => ({ ...c, sleep }))}
-              />
-            )}
-            <p className="hint">
-              Inside this window the board goes blank (no overnight flap wear). Leave
-              empty to keep it on 24/7.
-            </p>
-          </section>
-
-          <section className="panel">
-            <h2>Slides</h2>
-            <ul className="slide-list">
-              {slides.map((slide, i) => (
-                <li
-                  key={slide.id}
-                  className={selected?.id === slide.id ? 'selected' : ''}
-                  onClick={() => setSelectedId(slide.id)}
-                >
-                  <input
-                    type="checkbox"
-                    checked={slide.enabled}
-                    disabled={!isAdmin}
-                    title={isAdmin ? 'Show in rotation' : 'Only admins control rotation'}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => updateSlide({ ...slide, enabled: e.target.checked })}
-                  />
-                  <div className="thumb">
-                    <BoardPreview grid={render(slide.config, ctx)} scale="thumbnail" />
-                  </div>
-                  <span className="slide-name">{slide.name}</span>
-                  <span className="slide-actions">
-                    {isAdmin && (
-                      <>
-                        <button disabled={i === 0} onClick={(e) => { e.stopPropagation(); move(slide.id, -1); }}>↑</button>
-                        <button disabled={i === slides.length - 1} onClick={(e) => { e.stopPropagation(); move(slide.id, 1); }}>↓</button>
-                      </>
-                    )}
-                    {canEdit(slide) && (
-                      <button onClick={(e) => { e.stopPropagation(); removeSlide(slide.id); }}>✕</button>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <div className="add-buttons">
-              {isAdmin ? (
-                <>
-                  <button onClick={() => addSlide('clock')}>+ Clock</button>
-                  <button onClick={() => addSlide('worldclock')}>+ World clock</button>
-                  <button onClick={() => addSlide('ticker')}>+ Ticker</button>
-                  <button onClick={() => addSlide('weather')}>+ Weather</button>
-                  <button onClick={() => addSlide('multiweather')}>+ Multi-weather</button>
-                  <button onClick={() => addSlide('news')}>+ News</button>
-                  <button onClick={() => addSlide('sports')}>+ Sports</button>
-                  <button onClick={() => addSlide('message')}>+ Message</button>
-                  <button onClick={() => addSlide('painter')}>+ Painter</button>
-                </>
-              ) : (
-                <button onClick={() => addSlide('painter')}>+ Painter</button>
-              )}
+      {/* ---- Editor slide-over ---- */}
+      {selected && (
+        <div
+          className="drawer-backdrop right"
+          onClick={() => setSelectedId(null)}
+          role="presentation"
+        >
+          <div
+            className="editor-drawer"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label={`Edit ${selected.name}`}
+          >
+            <div className="drawer-head">
+              <h2>{canEdit(selected) ? 'Edit' : 'Preview'} — {selected.name}</h2>
+              <button onClick={() => setSelectedId(null)}>Done</button>
             </div>
-            {!isAdmin && (
+            <BoardPreview grid={render(selected.config, ctx)} />
+            {selected.config.type !== 'painter' && selected.config.type !== 'clock' && (
+              <p className="hint">Preview uses sample data; the agent fetches live.</p>
+            )}
+            {canEdit(selected) ? (
+              <SlideEditor
+                slide={selected}
+                previewGrid={render(selected.config, ctx)}
+                onChange={updateSlide}
+              />
+            ) : (
               <p className="hint">
-                Members can draw painter slides; an admin enables them on the board.
+                Only admins{selected.config.type === 'painter' ? ' or the creator' : ''} can edit
+                this slide.
               </p>
             )}
-          </section>
-
-          {isAdmin && <AdminPanel me={me} />}
-        </aside>
-
-        <main>
-          {selected ? (
-            <>
-              <section className="panel">
-                <h2>Preview — {selected.name}</h2>
-                <BoardPreview grid={render(selected.config, ctx)} />
-                {selected.config.type !== 'painter' && selected.config.type !== 'clock' && (
-                  <p className="hint">Preview uses sample data; the agent fetches live.</p>
-                )}
-              </section>
-              {canEdit(selected) ? (
-                <section className="panel">
-                  <h2>Edit</h2>
-                  <SlideEditor
-                    slide={selected}
-                    previewGrid={render(selected.config, ctx)}
-                    onChange={updateSlide}
-                  />
-                </section>
-              ) : (
-                <section className="panel">
-                  <p className="hint">
-                    Only admins{selected.config.type === 'painter' ? ' or the creator' : ''} can
-                    edit this slide.
-                  </p>
-                </section>
-              )}
-            </>
-          ) : (
-            <section className="panel">
-              <p>Add a slide to get started.</p>
-            </section>
-          )}
-        </main>
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

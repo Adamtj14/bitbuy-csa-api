@@ -611,6 +611,25 @@ button:disabled {
   flex-wrap: wrap;
 }
 
+.char-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  opacity: 0.6;
+  min-width: 2.5ch;
+  text-align: right;
+}
+
+.char-count.low {
+  opacity: 1;
+  color: #e3b341;
+}
+
+.char-count.over {
+  opacity: 1;
+  color: #f28b82;
+  font-weight: 600;
+}
+
 .compose-preview {
   width: 320px;
   max-width: 42%;

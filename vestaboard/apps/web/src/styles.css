@@ -139,6 +139,137 @@ button:disabled {
   gap: 8px;
 }
 
+/* ---- Top bar + hamburger ---- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.topbar h1 {
+  flex: 1;
+  margin: 0;
+}
+
+.menu-btn {
+  font-size: 20px;
+  line-height: 1;
+  padding: 6px 12px;
+}
+
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 30;
+  display: flex;
+}
+
+.drawer-backdrop.right {
+  justify-content: flex-end;
+}
+
+.drawer,
+.editor-drawer {
+  height: 100%;
+  overflow-y: auto;
+  background: #161a1f;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: drawer-in 0.18s ease-out;
+}
+
+.drawer {
+  width: 340px;
+  max-width: 88vw;
+  border-right: 1px solid #2a2e34;
+}
+
+.editor-drawer {
+  width: 600px;
+  max-width: 94vw;
+  border-left: 1px solid #2a2e34;
+  animation-name: drawer-in-right;
+}
+
+@keyframes drawer-in {
+  from { transform: translateX(-16px); opacity: 0.4; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes drawer-in-right {
+  from { transform: translateX(16px); opacity: 0.4; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.drawer-head h2 {
+  margin: 0;
+}
+
+.drawer-user {
+  font-size: 13px;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+
+.drawer-item {
+  text-align: left;
+  width: 100%;
+}
+
+.drawer-item.danger {
+  margin-top: auto;
+  color: #f28b82;
+  border-color: #5a2b2b;
+}
+
+.drawer-section {
+  border-top: 1px solid #2a2e34;
+  padding-top: 12px;
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Flatten the People panel when it lives inside the drawer. */
+.drawer-section .panel {
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+}
+
+.field-label {
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+/* ---- Focused home ---- */
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.onair {
+  border-color: #34506e;
+}
+
+.onair .h2,
+.onair h2 {
+  margin-top: 0;
+}
+
 .hint {
   font-size: 12px;
   opacity: 0.65;

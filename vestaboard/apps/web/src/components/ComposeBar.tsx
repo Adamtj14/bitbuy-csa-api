@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BoardConfig, render, RenderContext } from '@vestaboard/core';
+import { BoardConfig, dimsOf, render, RenderContext, wrapText } from '@vestaboard/core';
 import { BoardPreview } from './BoardPreview.js';
 
 /** Stable id for the single slide the compose box drives. */
@@ -27,6 +27,15 @@ export function ComposeBar({
 
   const grid = render({ type: 'message', text: text || ' ' }, ctx);
 
+  // The board can hold rows×cols characters; count down like Twitter.
+  const { rows, cols } = dimsOf(config.boardModel);
+  const capacity = rows * cols;
+  const remaining = capacity - text.length;
+  const over = remaining < 0;
+  // Word-wrapping can push text off the board before the raw char cap is hit.
+  const overflows = wrapText(text, cols).length > rows;
+  const countClass = over ? 'over' : remaining <= 20 ? 'low' : '';
+
   return (
     <section className="panel compose">
       <div className="compose-row">
@@ -39,7 +48,7 @@ export function ComposeBar({
             onChange={(e) => setText(e.target.value)}
           />
           <div className="compose-actions">
-            <button onClick={() => onPost(text)} disabled={!text.trim()}>
+            <button onClick={() => onPost(text)} disabled={!text.trim() || over}>
               Post to board
             </button>
             {existing && (
@@ -51,6 +60,17 @@ export function ComposeBar({
               >
                 Clear
               </button>
+            )}
+            <span
+              className={`char-count ${countClass}`}
+              title={`${capacity} characters fit on this board`}
+            >
+              {remaining}
+            </span>
+            {overflows && !over && (
+              <span className="hint" style={{ margin: 0 }}>
+                Long lines may wrap off the board.
+              </span>
             )}
             {existing && (
               <span className="hint" style={{ margin: 0 }}>

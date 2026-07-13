@@ -67,6 +67,10 @@ the board shows.
 - **Message the board** — a compose box pinned to the top of the home screen
   (admins). Posting drives a single **Message** slide at the front of the
   rotation; Clear removes it.
+- **Live-score interrupt** — a sports slide with **followed teams** watches those
+  games; when a score changes, that slide overtakes the board immediately, holds
+  for one rotation interval, then the normal rotation resumes one slide onward.
+  The server polls scores ~every 30s (faster while a followed game is live).
 - **News digest** — a news slide's *Mode* can be **AI digest**: headlines are
   distilled by Claude into board-sized lines, cached and refreshed every ~2h.
   Set an **Anthropic API key** in Settings to enable it (default model

@@ -14,6 +14,7 @@ import {
   render,
   RenderContext,
   Slide,
+  SportsSlideConfig,
   WeatherData,
 } from '@vestaboard/core';
 import { RateLimitedError, VestaboardCloudClient } from './vestaboard.js';
@@ -59,6 +60,14 @@ interface CacheEntry<T> {
 /** How often to re-check for a key while cloud push is idle (no key set). */
 const IDLE_POLL_MS = 5000;
 
+/** How often to poll scores for a live-score interrupt. */
+const SCORE_WATCH_MS = 30_000;
+
+/** Stable identity for a game, so we can compare scores across polls. */
+function gameKey(league: League, game: Game): string {
+  return `${league}:${game.away.abbrev}@${game.home.abbrev}`;
+}
+
 /**
  * Renders the active slide from the stored config and pushes it to the
  * board over the Vestaboard cloud API on the rotation interval. Same
@@ -83,6 +92,13 @@ export class BoardPusher {
   private weather = new Map<string, CacheEntry<WeatherData>>();
   private news = new Map<string, CacheEntry<NewsItem[]>>();
   private games = new Map<League, CacheEntry<Game[]>>();
+
+  // Live-score interrupt state.
+  private lastScores = new Map<string, string>();
+  private scoreWatchAt = 0;
+  private liveWatch = false;
+  private pendingInterruptSlideId: string | null = null;
+  private interrupt: { slideId: string; until: number; resumeAfterIndex: number } | null = null;
 
   constructor(
     private readonly deps: PusherDeps,
@@ -222,18 +238,131 @@ export class BoardPusher {
       this.deps.log('no active slides right now — nothing to push');
       return Math.min(freqMs, 60_000);
     }
+    const model = config.boardModel ?? 'flagship';
+
+    // Live-score watch: flag an interrupt when a tracked game's score changes.
+    await this.watchScores(enabled, nowMs);
+
+    // A score changed → the sports slide overtakes the board immediately and
+    // holds for one normal interval; then rotation resumes one slide onward.
+    if (this.pendingInterruptSlideId) {
+      const slide =
+        enabled.find((s) => s.id === this.pendingInterruptSlideId) ??
+        config.slides.find((s) => s.id === this.pendingInterruptSlideId) ??
+        null;
+      this.pendingInterruptSlideId = null;
+      if (slide) {
+        if (!this.interrupt) {
+          this.interrupt = { slideId: slide.id, until: 0, resumeAfterIndex: Math.max(this.slideIndex, 0) };
+        }
+        this.interrupt.slideId = slide.id;
+        this.interrupt.until = nowMs + freqMs;
+        await this.pushSlide(client, slide, enabled, now, model, `${slide.name} (score update)`);
+        return this.interruptSleep(nowMs);
+      }
+    }
+
+    // Keep an active interrupt on screen until its hold expires.
+    if (this.interrupt) {
+      if (nowMs < this.interrupt.until) {
+        const slide =
+          enabled.find((s) => s.id === this.interrupt!.slideId) ??
+          config.slides.find((s) => s.id === this.interrupt!.slideId) ??
+          null;
+        if (slide) await this.pushSlide(client, slide, enabled, now, model, `${slide.name} (score update)`);
+        return this.interruptSleep(nowMs);
+      }
+      // Hold expired: resume one slide past whatever was showing before.
+      this.slideIndex = (this.interrupt.resumeAfterIndex + 1) % enabled.length;
+      this.lastAdvanceAt = nowMs;
+      this.interrupt = null;
+      this.deps.log('score interrupt over — resuming rotation');
+    }
+
+    // Normal rotation.
     if (this.slideIndex < 0 || nowMs - this.lastAdvanceAt >= freqMs) {
       this.slideIndex = (this.slideIndex + 1) % enabled.length;
       this.lastAdvanceAt = nowMs;
     }
     const slide = enabled[this.slideIndex % enabled.length]!;
+    await this.pushSlide(client, slide, enabled, now, model, slide.name);
 
-    const model = config.boardModel ?? 'flagship';
+    // Poll faster while a tracked game is live so goals interrupt quickly.
+    const cap = this.liveWatch ? SCORE_WATCH_MS : 60_000;
+    return Math.max(Math.min(freqMs, cap), MIN_FREQUENCY_SECONDS * 1000);
+  }
+
+  /** Build context for a slide, render, and push it. */
+  private async pushSlide(
+    client: Pick<VestaboardCloudClient, 'postMessage'>,
+    slide: Slide,
+    enabled: Slide[],
+    now: Date,
+    model: RenderContext['model'],
+    label: string,
+  ): Promise<void> {
     const ctx = await this.buildContext(slide, enabled, now, model);
     ctx.model = model;
-    const grid = render(slide.config, ctx);
-    await this.pushGrid(client, grid, slide.name);
-    return Math.max(Math.min(freqMs, 60_000), MIN_FREQUENCY_SECONDS * 1000);
+    await this.pushGrid(client, render(slide.config, ctx), label);
+  }
+
+  /** ms to sleep while an interrupt is held — wake near its expiry. */
+  private interruptSleep(nowMs: number): number {
+    const remaining = this.interrupt ? this.interrupt.until - nowMs : 0;
+    return Math.min(Math.max(remaining, MIN_FREQUENCY_SECONDS * 1000), 30_000);
+  }
+
+  /**
+   * Poll scores for the leagues of the enabled sports slides (throttled) and,
+   * when a watched game's score changes versus the last poll, flag an
+   * interrupt with that slide. Watched games are those matching a slide's
+   * pinned teams (or all of the league's games if none are pinned).
+   */
+  private async watchScores(enabled: Slide[], nowMs: number): Promise<void> {
+    const watched: Array<{ slide: Slide; config: SportsSlideConfig }> = [];
+    for (const s of enabled) {
+      if (s.config.type === 'sports') watched.push({ slide: s, config: s.config });
+    }
+    if (watched.length === 0) {
+      this.liveWatch = false;
+      return;
+    }
+    if (nowMs - this.scoreWatchAt < SCORE_WATCH_MS) return;
+    this.scoreWatchAt = nowMs;
+
+    // Fetch each league once and refresh the shared games cache.
+    for (const league of new Set(watched.map((w) => w.config.league))) {
+      try {
+        this.games.set(league, { value: await this.deps.sources.getScores(league), fetchedAt: nowMs });
+      } catch (err) {
+        this.deps.log(`score watch: ${league} fetch failed: ${String(err)}`);
+      }
+    }
+
+    let live = false;
+    for (const { slide, config } of watched) {
+      const pinned = (config.teams ?? []).map((t) => t.toUpperCase());
+      if (pinned.length === 0) continue; // only interrupt for prescribed teams
+      const games = this.games.get(config.league)?.value ?? [];
+      const forSlide = games.filter(
+        (g) =>
+          pinned.includes(g.home.abbrev.toUpperCase()) ||
+          pinned.includes(g.away.abbrev.toUpperCase()),
+      );
+      for (const game of forSlide) {
+        if (game.state === 'live') live = true;
+        if (game.state === 'pre') continue; // no score yet
+        const key = gameKey(config.league, game);
+        const score = `${game.away.score}-${game.home.score}`;
+        const prev = this.lastScores.get(key);
+        this.lastScores.set(key, score);
+        if (prev !== undefined && prev !== score) {
+          this.pendingInterruptSlideId = slide.id;
+          this.deps.log(`score change ${key} ${prev} -> ${score}; interrupting with "${slide.name}"`);
+        }
+      }
+    }
+    this.liveWatch = live;
   }
 
   /** Push a grid, skipping if the board already shows it; updates status. */

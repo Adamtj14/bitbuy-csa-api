@@ -432,6 +432,10 @@ function SportsEditor({
         />
         <span>Only show my teams’ games (otherwise they’re just listed first)</span>
       </label>
+      <p className="hint">
+        When a followed team’s score changes, this slide jumps onto the board right
+        away, holds for one rotation, then the normal rotation resumes.
+      </p>
     </div>
   );
 }

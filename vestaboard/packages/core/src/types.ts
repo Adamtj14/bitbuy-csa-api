@@ -148,6 +148,8 @@ export interface Slide {
   transition?: TransitionStrategy;
   /** Only rotate this slide inside this window (empty/absent = always). */
   schedule?: DaySchedule;
+  /** Pinned slides repeat after every regular slide (higher frequency). */
+  pinned?: boolean;
   /** User id of the creator; members may only edit their own slides. */
   createdBy?: string;
 }
@@ -155,6 +157,16 @@ export interface Slide {
 export interface RotationSettings {
   /** Seconds between slide changes; clamped to MIN_FREQUENCY_SECONDS. */
   frequencySeconds: number;
+}
+
+/** A temporary pause: the board holds a pattern until `until`. */
+export interface PauseState {
+  /** ISO timestamp when updates resume. */
+  until: string;
+  /** Which pause pattern to show (see PAUSE_PATTERN_IDS). */
+  patternId: string;
+  /** Overlay "BRB" on the pattern. Default false. */
+  brb?: boolean;
 }
 
 /** The document the web app edits and the agent consumes (slides.json). */
@@ -167,6 +179,17 @@ export interface BoardConfig {
   slides: Slide[];
   /** When the current time is inside this window, the board goes blank. */
   sleep?: DaySchedule;
+  /** While set and in the future, the board holds a pause pattern. */
+  pause?: PauseState;
+  /** When true, only sports slides rotate. */
+  sportsMode?: boolean;
+}
+
+/** Whether a pause is currently in effect. */
+export function isPaused(config: BoardConfig, now: Date): boolean {
+  if (!config.pause) return false;
+  const until = Date.parse(config.pause.until);
+  return Number.isFinite(until) && until > now.getTime();
 }
 
 export interface Quote {

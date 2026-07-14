@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { activeSlides, hasSchedule, isActive, isSleeping } from './schedule.js';
+import {
+  activeSlides,
+  hasSchedule,
+  isActive,
+  isSleeping,
+  rotationSequence,
+} from './schedule.js';
 import type { BoardConfig, Slide } from './types.js';
 
 // A fixed instant: 2026-07-11T14:30:00Z is Saturday, 10:30 in America/Toronto (EDT).
@@ -60,5 +66,39 @@ describe('activeSlides + isSleeping', () => {
     expect(isSleeping(config, SAT_1030)).toBe(false);
     const sleeping: BoardConfig = { ...config, sleep: { start: '00:00', end: '11:00' } };
     expect(isSleeping(sleeping, SAT_1030)).toBe(true);
+  });
+});
+
+describe('rotationSequence', () => {
+  const s = (id: string, pinned = false): Slide => ({
+    id,
+    name: id,
+    enabled: true,
+    order: Number(id),
+    config: { type: 'clock', style: 'word' },
+    pinned,
+  });
+
+  it('interleaves pins after every regular slide', () => {
+    // regulars 1,2,4 + pins 3,5 → 1,3,5, 2,3,5, 4,3,5
+    const active = [s('1'), s('2'), s('3', true), s('4'), s('5', true)];
+    expect(rotationSequence(active).map((x) => x.id)).toEqual([
+      '1', '3', '5', '2', '3', '5', '4', '3', '5',
+    ]);
+  });
+
+  it('is unchanged when nothing is pinned', () => {
+    const active = [s('1'), s('2'), s('3')];
+    expect(rotationSequence(active).map((x) => x.id)).toEqual(['1', '2', '3']);
+  });
+
+  it('cycles just the pins when everything is pinned', () => {
+    const active = [s('1', true), s('2', true)];
+    expect(rotationSequence(active).map((x) => x.id)).toEqual(['1', '2']);
+  });
+
+  it('handles a single regular slide with pins', () => {
+    const active = [s('1'), s('2', true), s('3', true)];
+    expect(rotationSequence(active).map((x) => x.id)).toEqual(['1', '2', '3']);
   });
 });

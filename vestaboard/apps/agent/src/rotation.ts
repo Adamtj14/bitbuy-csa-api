@@ -4,10 +4,13 @@ import {
   BoardConfig,
   Grid,
   gridsEqual,
+  isPaused,
   isSleeping,
   MIN_FREQUENCY_SECONDS,
   render,
   RenderContext,
+  renderPausePattern,
+  rotationSequence,
   Slide,
   TransitionStrategy,
 } from '@vestaboard/core';
@@ -86,17 +89,36 @@ export class RotationEngine {
       return Math.min(freqMs, 60_000);
     }
 
-    const slides = this.activeSlides(now);
+    // Paused: hold the chosen pattern (with optional BRB) until it ends.
+    if (this.config && isPaused(this.config, now)) {
+      const pause = this.config.pause!;
+      const grid = renderPausePattern(
+        pause.patternId,
+        this.config.boardModel ?? 'flagship',
+        pause.brb ?? false,
+      );
+      await this.pushIfChanged(grid, `paused (${pause.patternId})`);
+      return Math.min(freqMs, 60_000);
+    }
+
+    let slides = this.activeSlides(now);
+    // Sports mode: only sports slides rotate (ignored if there are none).
+    if (this.config?.sportsMode) {
+      const sports = slides.filter((s) => s.config.type === 'sports');
+      if (sports.length > 0) slides = sports;
+    }
     if (slides.length === 0) {
       this.deps.log('no active slides right now');
       return Math.min(freqMs, 60_000);
     }
+    // Pinned slides interleave after every regular slide; index the sequence.
+    const sequence = rotationSequence(slides);
 
     if (this.slideIndex < 0 || nowMs - this.lastAdvanceAt >= freqMs) {
-      this.slideIndex = (this.slideIndex + 1) % slides.length;
+      this.slideIndex = (this.slideIndex + 1) % sequence.length;
       this.lastAdvanceAt = nowMs;
     }
-    const slide = slides[this.slideIndex % slides.length]!;
+    const slide = sequence[this.slideIndex % sequence.length]!;
 
     const ctx = await this.deps.getContext(slide, now, slides);
     ctx.model = this.config?.boardModel ?? 'flagship';

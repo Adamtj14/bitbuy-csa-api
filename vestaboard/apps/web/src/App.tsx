@@ -4,11 +4,15 @@ import {
   blankGrid,
   BoardConfig,
   BoardModel,
+  isPaused,
   isSleeping,
   locationKey,
   MIN_FREQUENCY_SECONDS,
+  PAUSE_PATTERN_NAMES,
   RenderContext,
   render,
+  renderPausePattern,
+  rotationSequence,
   Slide,
   SymbolSpec,
   WeatherData,
@@ -28,6 +32,7 @@ import { TransitionGallery } from './components/TransitionDemo.js';
 import { SettingsPanel } from './components/SettingsPanel.js';
 import { ScheduleEditor } from './components/ScheduleEditor.js';
 import { ComposeBar, COMPOSE_SLIDE_ID } from './components/ComposeBar.js';
+import { PauseControl } from './components/PauseControl.js';
 import { clampFrequency, exportConfig, newSlide, sampleGrid } from './state.js';
 
 const mockProvider = new MockProvider();
@@ -105,7 +110,26 @@ function OnAirPreview({ config, ctx }: { config: BoardConfig; ctx: RenderContext
   }, [freqMs]);
 
   const sleeping = isSleeping(config, ctx.now);
-  const active = activeSlides(config, ctx.now);
+
+  if (isPaused(config, ctx.now)) {
+    const pause = config.pause!;
+    return (
+      <>
+        <BoardPreview grid={renderPausePattern(pause.patternId, model, pause.brb ?? false)} />
+        <p className="hint">
+          Paused — holding “{PAUSE_PATTERN_NAMES[pause.patternId] ?? pause.patternId}” until{' '}
+          {new Date(pause.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.
+        </p>
+      </>
+    );
+  }
+
+  let base = activeSlides(config, ctx.now);
+  if (config.sportsMode) {
+    const sports = base.filter((s) => s.config.type === 'sports');
+    if (sports.length > 0) base = sports;
+  }
+  const active = rotationSequence(base);
 
   if (sleeping) {
     return (
@@ -129,7 +153,8 @@ function OnAirPreview({ config, ctx }: { config: BoardConfig; ctx: RenderContext
       <BoardPreview grid={render(slide.config, ctx)} />
       <p className="hint">
         Showing “{slide.name}” · rotates every {Math.round(freqMs / 1000)}s through{' '}
-        {active.length} slide{active.length > 1 ? 's' : ''}.
+        {active.length} slide{active.length > 1 ? 's' : ''}
+        {config.sportsMode ? ' · sports mode' : ''}.
       </p>
     </>
   );
@@ -521,6 +546,13 @@ export default function App() {
         <section className="panel onair">
           <h2>On the board now</h2>
           <OnAirPreview config={config} ctx={ctx} />
+          {isAdmin && (
+            <PauseControl
+              config={config}
+              now={now}
+              onChange={(patch) => adminUpdate((c) => ({ ...c, ...patch }))}
+            />
+          )}
         </section>
 
         {isAdmin && (
@@ -555,10 +587,20 @@ export default function App() {
                 <div className="thumb">
                   <BoardPreview grid={render(slide.config, ctx)} scale="thumbnail" />
                 </div>
-                <span className="slide-name">{slide.name}</span>
+                <span className="slide-name">
+                  {slide.name}
+                  {slide.pinned && <span className="pin-badge">📌 pinned</span>}
+                </span>
                 <span className="slide-actions">
                   {isAdmin && (
                     <>
+                      <button
+                        className={`pin-btn ${slide.pinned ? 'pin-on' : ''}`}
+                        title={slide.pinned ? 'Unpin' : 'Pin — repeat after every slide'}
+                        onClick={(e) => { e.stopPropagation(); updateSlide({ ...slide, pinned: !slide.pinned }); }}
+                      >
+                        📌
+                      </button>
                       <button disabled={i === 0} onClick={(e) => { e.stopPropagation(); move(slide.id, -1); }}>↑</button>
                       <button disabled={i === slides.length - 1} onClick={(e) => { e.stopPropagation(); move(slide.id, 1); }}>↓</button>
                     </>
@@ -610,6 +652,7 @@ export default function App() {
               <SlideEditor
                 slide={selected}
                 previewGrid={render(selected.config, ctx)}
+                canPin={isAdmin}
                 onChange={updateSlide}
               />
             ) : (

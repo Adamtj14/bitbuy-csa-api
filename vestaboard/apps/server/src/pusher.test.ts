@@ -107,6 +107,68 @@ describe('BoardPusher', () => {
     expect(h.logs.some((l) => l.includes('skip'))).toBe(true);
   });
 
+  it('interleaves a pinned slide after every regular slide', async () => {
+    const g = (code: number) => {
+      const grid = blankGrid();
+      grid[0]![0] = code;
+      return grid;
+    };
+    const cfg: BoardConfig = {
+      rotation: { frequencySeconds: 30 },
+      slides: [
+        { id: 'r1', name: 'R1', enabled: true, order: 1, config: { type: 'painter', grid: g(1) } },
+        { id: 'p', name: 'P', enabled: true, order: 2, pinned: true, config: { type: 'painter', grid: g(2) } },
+        { id: 'r2', name: 'R2', enabled: true, order: 3, config: { type: 'painter', grid: g(3) } },
+      ],
+    };
+    const h = harness(cfg);
+    for (let i = 0; i < 5; i++) {
+      await h.pusher.tick();
+      h.advance(30_000);
+    }
+    // regulars [R1,R2] + pin [P] → 1,2,3,2,1 (P after each regular)
+    expect(h.pushes.map((grid) => grid[0]![0])).toEqual([1, 2, 3, 2, 1]);
+  });
+
+  it('holds a pause pattern (with BRB) and skips re-pushes', async () => {
+    const cfg = painter(5);
+    // harness clock starts at 1,000,000 ms — pause until well past that
+    cfg.pause = { until: new Date(2_000_000).toISOString(), patternId: 'checkerboard', brb: true };
+    const h = harness(cfg);
+    await h.pusher.tick();
+    h.advance(30_000);
+    await h.pusher.tick();
+    expect(h.pushes).toHaveLength(1); // identical grid skipped on the 2nd tick
+    expect(h.logs.some((l) => l.includes('paused (checkerboard)'))).toBe(true);
+    // BRB label present in the pushed grid
+    const grid = h.pushes[0]!;
+    expect(grid[2]!.some((c) => c === 2)).toBe(true); // 'B' = 2
+    // pause expires → rotation resumes
+    h.advance(1_500_000);
+    await h.pusher.tick();
+    expect(h.pushes.length).toBeGreaterThan(1);
+  });
+
+  it('sports mode rotates only sports slides', async () => {
+    const cfg = painter(5);
+    cfg.sportsMode = true;
+    cfg.slides.push({
+      id: 's',
+      name: 'Scores',
+      enabled: true,
+      order: 3,
+      config: { type: 'sports', league: 'nhl' },
+    });
+    const h = harness(cfg);
+    for (let i = 0; i < 3; i++) {
+      await h.pusher.tick();
+      h.advance(30_000);
+    }
+    // every push was the sports slide ("NO GAMES TODAY" text, no painter codes)
+    expect(h.logs.filter((l) => l.includes('pushed')).every((l) => l.includes('Scores'))).toBe(true);
+    expect(h.pushes.length).toBeGreaterThanOrEqual(1);
+  });
+
   it('clamps the tick delay to the 15s hardware floor', async () => {
     const cfg = painter(1);
     cfg.rotation.frequencySeconds = 1;

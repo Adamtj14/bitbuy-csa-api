@@ -67,6 +67,17 @@ the board shows.
 - **Message the board** — a compose box pinned to the top of the home screen
   (admins). Posting drives a single **Message** slide at the front of the
   rotation; Clear removes it.
+- **Pinned slides** — pin a slide (📌 in the slide list or its editor) to show
+  it **after every regular slide**, so it appears more often: regulars {1,2,4}
+  with pins {3,5} play `1,3,5, 2,3,5, 4,3,5`. Pure `rotationSequence` in
+  `packages/core/src/schedule.ts`, shared by the pusher and the agent.
+- **Pause updates** — on the home screen (admins): 30 min / 1 h / 2 h / 4 h /
+  6 h. The board flips to a randomly chosen pattern from a 20-design library
+  (`packages/core/src/patterns.ts`, colours + symbols only, flagship and Note
+  variants) and holds it until time is up or you hit Resume. An optional
+  **BRB** overlay (off by default) labels the pattern.
+- **Sports mode** — a toggle that restricts the rotation to sports slides only
+  (ignored when no sports slide is active).
 - **Live-score interrupt** — a sports slide with **followed teams** watches those
   games; when a score changes, that slide overtakes the board immediately, holds
   for one rotation interval, then the normal rotation resumes one slide onward.

@@ -27,10 +27,12 @@ export interface SlideEditorProps {
   slide: Slide;
   /** The slide's currently rendered grid, for the live transition demo. */
   previewGrid?: Grid;
+  /** Whether this user may pin (rotation control — admins only). */
+  canPin?: boolean;
   onChange: (slide: Slide) => void;
 }
 
-export function SlideEditor({ slide, previewGrid, onChange }: SlideEditorProps) {
+export function SlideEditor({ slide, previewGrid, canPin, onChange }: SlideEditorProps) {
   const setConfig = (config: SlideTypeConfig) => onChange({ ...slide, config });
 
   return (
@@ -67,6 +69,16 @@ export function SlideEditor({ slide, previewGrid, onChange }: SlideEditorProps) 
             Live demo of the {slide.transition ?? 'default'} flip.
           </span>
         </div>
+      )}
+      {canPin && (
+        <label className="field checkbox">
+          <input
+            type="checkbox"
+            checked={slide.pinned ?? false}
+            onChange={(e) => onChange({ ...slide, pinned: e.target.checked })}
+          />
+          <span>📌 Pin — repeat after every slide (higher frequency)</span>
+        </label>
       )}
       <div className="field">
         <span>Schedule (optional — blank = always in rotation)</span>

@@ -4,10 +4,12 @@ import {
   BoardConfig,
   Grid,
   gridsEqual,
+  isPaused,
   isSleeping,
   MIN_FREQUENCY_SECONDS,
   render,
   RenderContext,
+  renderPausePattern,
   rotationSequence,
   Slide,
   TransitionStrategy,
@@ -87,7 +89,24 @@ export class RotationEngine {
       return Math.min(freqMs, 60_000);
     }
 
-    const slides = this.activeSlides(now);
+    // Paused: hold the chosen pattern (with optional BRB) until it ends.
+    if (this.config && isPaused(this.config, now)) {
+      const pause = this.config.pause!;
+      const grid = renderPausePattern(
+        pause.patternId,
+        this.config.boardModel ?? 'flagship',
+        pause.brb ?? false,
+      );
+      await this.pushIfChanged(grid, `paused (${pause.patternId})`);
+      return Math.min(freqMs, 60_000);
+    }
+
+    let slides = this.activeSlides(now);
+    // Sports mode: only sports slides rotate (ignored if there are none).
+    if (this.config?.sportsMode) {
+      const sports = slides.filter((s) => s.config.type === 'sports');
+      if (sports.length > 0) slides = sports;
+    }
     if (slides.length === 0) {
       this.deps.log('no active slides right now');
       return Math.min(freqMs, 60_000);

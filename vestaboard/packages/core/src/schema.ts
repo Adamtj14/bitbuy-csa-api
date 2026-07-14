@@ -109,6 +109,14 @@ export const boardConfigSchema = z.object({
   }),
   slides: z.array(slideSchema),
   sleep: dayScheduleSchema.optional(),
+  pause: z
+    .object({
+      until: z.string(),
+      patternId: z.string(),
+      brb: z.boolean().optional(),
+    })
+    .optional(),
+  sportsMode: z.boolean().optional(),
 });
 
 export function parseBoardConfig(raw: unknown): BoardConfig {

@@ -5,6 +5,7 @@ import {
   Game,
   Grid,
   gridsEqual,
+  isPaused,
   isSleeping,
   League,
   locationKey,
@@ -13,6 +14,7 @@ import {
   Quote,
   render,
   RenderContext,
+  renderPausePattern,
   rotationSequence,
   Slide,
   SportsSlideConfig,
@@ -226,15 +228,30 @@ export class BoardPusher {
 
     const freqMs = Math.max(config.rotation.frequencySeconds, MIN_FREQUENCY_SECONDS) * 1000;
 
+    const model = config.boardModel ?? 'flagship';
+
     // Sleep window: blank the board (pushed once thanks to the identical-grid
     // skip) and idle, so the flaps aren't cycling overnight.
     if (isSleeping(config, now)) {
-      const blank = blankGrid(config.boardModel ?? 'flagship');
-      await this.pushGrid(client, blank, 'asleep (sleep hours)');
+      await this.pushGrid(client, blankGrid(model), 'asleep (sleep hours)');
       return Math.min(freqMs, 60_000);
     }
 
-    const enabled = activeSlides(config, now);
+    // Paused: hold the chosen pattern (with optional BRB) until the pause
+    // ends; the identical-grid skip keeps it from re-pushing every tick.
+    if (isPaused(config, now)) {
+      const grid = renderPausePattern(config.pause!.patternId, model, config.pause!.brb ?? false);
+      await this.pushGrid(client, grid, `paused (${config.pause!.patternId})`);
+      return Math.min(freqMs, 60_000);
+    }
+
+    let enabled = activeSlides(config, now);
+    // Sports mode: only sports slides rotate (ignored if there are none).
+    if (config.sportsMode) {
+      const sports = enabled.filter((s) => s.config.type === 'sports');
+      if (sports.length > 0) enabled = sports;
+      else this.deps.log('sports mode on but no active sports slides — rotating everything');
+    }
     if (enabled.length === 0) {
       this.deps.log('no active slides right now — nothing to push');
       return Math.min(freqMs, 60_000);
@@ -242,7 +259,6 @@ export class BoardPusher {
     // Play order: pinned slides interleave after every regular slide. Indexing
     // runs over the sequence; `enabled` stays the deduped set for data fan-out.
     const sequence = rotationSequence(enabled);
-    const model = config.boardModel ?? 'flagship';
 
     // Live-score watch: flag an interrupt when a tracked game's score changes.
     await this.watchScores(enabled, nowMs);

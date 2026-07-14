@@ -261,6 +261,31 @@ button:disabled {
   gap: 16px;
 }
 
+/* ---- Pause control ---- */
+.pause-control {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #2a2e34;
+}
+
+.pause-row,
+.pause-active {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pause-label {
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.9;
+  margin-right: 2px;
+}
+
 .onair {
   border-color: #34506e;
 }

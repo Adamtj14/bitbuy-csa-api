@@ -107,6 +107,29 @@ describe('BoardPusher', () => {
     expect(h.logs.some((l) => l.includes('skip'))).toBe(true);
   });
 
+  it('interleaves a pinned slide after every regular slide', async () => {
+    const g = (code: number) => {
+      const grid = blankGrid();
+      grid[0]![0] = code;
+      return grid;
+    };
+    const cfg: BoardConfig = {
+      rotation: { frequencySeconds: 30 },
+      slides: [
+        { id: 'r1', name: 'R1', enabled: true, order: 1, config: { type: 'painter', grid: g(1) } },
+        { id: 'p', name: 'P', enabled: true, order: 2, pinned: true, config: { type: 'painter', grid: g(2) } },
+        { id: 'r2', name: 'R2', enabled: true, order: 3, config: { type: 'painter', grid: g(3) } },
+      ],
+    };
+    const h = harness(cfg);
+    for (let i = 0; i < 5; i++) {
+      await h.pusher.tick();
+      h.advance(30_000);
+    }
+    // regulars [R1,R2] + pin [P] → 1,2,3,2,1 (P after each regular)
+    expect(h.pushes.map((grid) => grid[0]![0])).toEqual([1, 2, 3, 2, 1]);
+  });
+
   it('clamps the tick delay to the 15s hardware floor', async () => {
     const cfg = painter(1);
     cfg.rotation.frequencySeconds = 1;

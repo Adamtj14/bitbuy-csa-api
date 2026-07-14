@@ -9,6 +9,7 @@ import {
   MIN_FREQUENCY_SECONDS,
   RenderContext,
   render,
+  rotationSequence,
   Slide,
   SymbolSpec,
   WeatherData,
@@ -105,7 +106,7 @@ function OnAirPreview({ config, ctx }: { config: BoardConfig; ctx: RenderContext
   }, [freqMs]);
 
   const sleeping = isSleeping(config, ctx.now);
-  const active = activeSlides(config, ctx.now);
+  const active = rotationSequence(activeSlides(config, ctx.now));
 
   if (sleeping) {
     return (
@@ -555,10 +556,20 @@ export default function App() {
                 <div className="thumb">
                   <BoardPreview grid={render(slide.config, ctx)} scale="thumbnail" />
                 </div>
-                <span className="slide-name">{slide.name}</span>
+                <span className="slide-name">
+                  {slide.name}
+                  {slide.pinned && <span className="pin-badge">📌 pinned</span>}
+                </span>
                 <span className="slide-actions">
                   {isAdmin && (
                     <>
+                      <button
+                        className={`pin-btn ${slide.pinned ? 'pin-on' : ''}`}
+                        title={slide.pinned ? 'Unpin' : 'Pin — repeat after every slide'}
+                        onClick={(e) => { e.stopPropagation(); updateSlide({ ...slide, pinned: !slide.pinned }); }}
+                      >
+                        📌
+                      </button>
                       <button disabled={i === 0} onClick={(e) => { e.stopPropagation(); move(slide.id, -1); }}>↑</button>
                       <button disabled={i === slides.length - 1} onClick={(e) => { e.stopPropagation(); move(slide.id, 1); }}>↓</button>
                     </>
@@ -610,6 +621,7 @@ export default function App() {
               <SlideEditor
                 slide={selected}
                 previewGrid={render(selected.config, ctx)}
+                canPin={isAdmin}
                 onChange={updateSlide}
               />
             ) : (

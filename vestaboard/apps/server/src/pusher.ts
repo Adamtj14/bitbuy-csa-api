@@ -13,6 +13,7 @@ import {
   Quote,
   render,
   RenderContext,
+  rotationSequence,
   Slide,
   SportsSlideConfig,
   WeatherData,
@@ -238,6 +239,9 @@ export class BoardPusher {
       this.deps.log('no active slides right now — nothing to push');
       return Math.min(freqMs, 60_000);
     }
+    // Play order: pinned slides interleave after every regular slide. Indexing
+    // runs over the sequence; `enabled` stays the deduped set for data fan-out.
+    const sequence = rotationSequence(enabled);
     const model = config.boardModel ?? 'flagship';
 
     // Live-score watch: flag an interrupt when a tracked game's score changes.
@@ -273,18 +277,18 @@ export class BoardPusher {
         return this.interruptSleep(nowMs);
       }
       // Hold expired: resume one slide past whatever was showing before.
-      this.slideIndex = (this.interrupt.resumeAfterIndex + 1) % enabled.length;
+      this.slideIndex = (this.interrupt.resumeAfterIndex + 1) % sequence.length;
       this.lastAdvanceAt = nowMs;
       this.interrupt = null;
       this.deps.log('score interrupt over — resuming rotation');
     }
 
-    // Normal rotation.
+    // Normal rotation over the interleaved sequence.
     if (this.slideIndex < 0 || nowMs - this.lastAdvanceAt >= freqMs) {
-      this.slideIndex = (this.slideIndex + 1) % enabled.length;
+      this.slideIndex = (this.slideIndex + 1) % sequence.length;
       this.lastAdvanceAt = nowMs;
     }
-    const slide = enabled[this.slideIndex % enabled.length]!;
+    const slide = sequence[this.slideIndex % sequence.length]!;
     await this.pushSlide(client, slide, enabled, now, model, slide.name);
 
     // Poll faster while a tracked game is live so goals interrupt quickly.

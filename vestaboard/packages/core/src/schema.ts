@@ -97,6 +97,7 @@ export const slideSchema = z.object({
     .enum(['column', 'reverse-column', 'edges-to-center', 'row', 'diagonal', 'random'])
     .optional(),
   schedule: dayScheduleSchema.optional(),
+  pinned: z.boolean().optional(),
   createdBy: z.string().optional(),
 });
 

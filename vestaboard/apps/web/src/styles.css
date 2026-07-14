@@ -320,6 +320,29 @@ button:disabled {
   font-size: 12px;
 }
 
+.pin-btn {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+
+.pin-btn.pin-on {
+  filter: none;
+  opacity: 1;
+  border-color: #4f8ef7;
+  background: #1d2432;
+}
+
+.pin-badge {
+  margin-left: 8px;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #1d2432;
+  border: 1px solid #4f8ef7;
+  color: #cfe0ff;
+  white-space: nowrap;
+}
+
 .add-buttons {
   display: flex;
   gap: 8px;

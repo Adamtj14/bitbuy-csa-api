@@ -81,3 +81,19 @@ export function activeSlides(config: BoardConfig, now: Date): Slide[] {
     .filter((s) => s.enabled && isActive(s.schedule, now, config.timeZone))
     .sort((a, b) => a.order - b.order);
 }
+
+/**
+ * The play order for the active slides. Pinned slides are pulled out of the
+ * regular run and shown after every regular slide, so they appear more often:
+ * regulars [1,2,4] + pins [3,5] → [1,3,5, 2,3,5, 4,3,5]. With no pins the order
+ * is unchanged; with only pins, just the pins cycle.
+ */
+export function rotationSequence(active: Slide[]): Slide[] {
+  const pinned = active.filter((s) => s.pinned);
+  if (pinned.length === 0) return active;
+  const regular = active.filter((s) => !s.pinned);
+  if (regular.length === 0) return pinned;
+  const sequence: Slide[] = [];
+  for (const slide of regular) sequence.push(slide, ...pinned);
+  return sequence;
+}

@@ -148,6 +148,8 @@ export interface Slide {
   transition?: TransitionStrategy;
   /** Only rotate this slide inside this window (empty/absent = always). */
   schedule?: DaySchedule;
+  /** Pinned slides repeat after every regular slide (higher frequency). */
+  pinned?: boolean;
   /** User id of the creator; members may only edit their own slides. */
   createdBy?: string;
 }

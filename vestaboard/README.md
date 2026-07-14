@@ -67,6 +67,10 @@ the board shows.
 - **Message the board** — a compose box pinned to the top of the home screen
   (admins). Posting drives a single **Message** slide at the front of the
   rotation; Clear removes it.
+- **Pinned slides** — pin a slide (📌 in the slide list or its editor) to show
+  it **after every regular slide**, so it appears more often: regulars {1,2,4}
+  with pins {3,5} play `1,3,5, 2,3,5, 4,3,5`. Pure `rotationSequence` in
+  `packages/core/src/schedule.ts`, shared by the pusher and the agent.
 - **Live-score interrupt** — a sports slide with **followed teams** watches those
   games; when a score changes, that slide overtakes the board immediately, holds
   for one rotation interval, then the normal rotation resumes one slide onward.

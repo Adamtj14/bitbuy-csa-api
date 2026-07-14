@@ -141,6 +141,8 @@ function ClockEditor({
           <option value="big-digital">Big digital</option>
           <option value="digital-date">Digital + date</option>
           <option value="word">Word clock</option>
+          <option value="pixel">Pixel (rainbow chips)</option>
+          <option value="pixel-invert">Pixel (inverse — chips background)</option>
         </select>
       </label>
       <label className="field">

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { blankGrid, BoardConfig, Game, Grid } from '@vestaboard/core';
+import { blankGrid, BoardConfig, Game, Grid, TransitionStrategy } from '@vestaboard/core';
 import { RateLimitedError, VestaboardCloudClient } from './vestaboard.js';
+import { LocalBoardClient } from './localboard.js';
 import { BoardPusher, PusherDeps } from './pusher.js';
 import { DataSources } from './sources.js';
 
@@ -70,6 +71,37 @@ describe('VestaboardCloudClient', () => {
     const [url, init] = spy.mock.calls[0]!;
     expect(url).toBe('https://rw.vestaboard.com/');
     expect((init!.headers as Record<string, string>)['X-Vestaboard-Read-Write-Key']).toBe('k');
+  });
+});
+
+describe('LocalBoardClient', () => {
+  it('POSTs the strategy alongside the grid with the local key header', async () => {
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 201 }));
+    const client = new LocalBoardClient({ host: '192.168.1.40', apiKey: 'localkey' });
+    await client.postMessage(blankGrid(), 'diagonal');
+    const [url, init] = spy.mock.calls[0]!;
+    expect(url).toBe('http://192.168.1.40:7000/local-api/message');
+    expect((init!.headers as Record<string, string>)['X-Vestaboard-Local-Api-Key']).toBe(
+      'localkey',
+    );
+    expect(JSON.parse(init!.body as string)).toMatchObject({ strategy: 'diagonal' });
+  });
+
+  it('sends the bare grid when no transition is set', async () => {
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 201 }));
+    const client = new LocalBoardClient({ host: 'board.lan', apiKey: 'k' });
+    await client.postMessage(blankGrid());
+    expect(Array.isArray(JSON.parse(spy.mock.calls[0]![1]!.body as string))).toBe(true);
+  });
+
+  it('throws RateLimitedError on the 15s hardware window (503)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 503 }));
+    const client = new LocalBoardClient({ host: 'board.lan', apiKey: 'k' });
+    await expect(client.postMessage(blankGrid())).rejects.toBeInstanceOf(RateLimitedError);
   });
 });
 
@@ -265,7 +297,7 @@ describe('BoardPusher', () => {
       getClient: () => ({ postMessage: async () => {} }),
       now: () => new Date(ms),
       log: (m) => {
-        const hit = /^pushed "(.+)"$/.exec(m);
+        const hit = /^pushed "(.+)" via \w+$/.exec(m);
         if (hit) pushed.push(hit[1]!);
       },
     };
@@ -290,6 +322,27 @@ describe('BoardPusher', () => {
     expect(pushed[pushed.length - 1]).toBe('C');
   });
 
+  it('passes the slide transition to the client and reports the push path', async () => {
+    const cfg = painter(5);
+    cfg.slides.forEach((s) => (s.transition = 'edges-to-center'));
+    const transitions: Array<TransitionStrategy | undefined> = [];
+    const pusher = new BoardPusher({
+      getConfig: () => cfg,
+      sources: emptySources,
+      getClient: () => ({
+        postMessage: async (_g: Grid, transition?: TransitionStrategy) => {
+          transitions.push(transition);
+          return 'local' as const;
+        },
+      }),
+      now: () => new Date(1_000_000),
+      log: () => {},
+    });
+    await pusher.tick();
+    expect(transitions).toEqual(['edges-to-center']);
+    expect(pusher.getStatus().via).toBe('local');
+  });
+
   it('does not interrupt on the first score poll (no baseline yet)', async () => {
     const config: BoardConfig = {
       rotation: { frequencySeconds: 30 },
@@ -309,7 +362,7 @@ describe('BoardPusher', () => {
       getClient: () => ({ postMessage: async () => {} }),
       now: () => new Date(ms),
       log: (m) => {
-        const hit = /^pushed "(.+)"$/.exec(m);
+        const hit = /^pushed "(.+)" via \w+$/.exec(m);
         if (hit) labels.push(hit[1]!);
       },
     });

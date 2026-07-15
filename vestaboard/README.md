@@ -153,7 +153,7 @@ MOCK_QUOTES=1 node dist/index.js --dry-run --config slides.example.json
 
 ## Pushing to the board
 
-Two ways to get rendered slides onto the physical board:
+Three ways to get rendered slides onto the physical board:
 
 ### A. Cloud push from the server (no LAN device)
 
@@ -178,8 +178,20 @@ truth. Either way the server logs `[pusher] pushed "<slide>"` on each update.
 Crypto quotes come from **CoinGecko** (free, no key). An optional
 `COINGECKO_API_KEY` (or the Settings field) raises the rate limit.
 
-Trade-off: this depends on Vestaboard's cloud and the internet. For a pure
-LAN, no-cloud setup, use the Pi agent below instead.
+Trade-off: this depends on Vestaboard's cloud and the internet, and the cloud
+API can't do flip transitions. For a pure LAN, no-cloud setup, use the Pi
+agent below instead.
+
+### A½. Server push over Tailscale (Local API — transitions work)
+
+If the server can reach the board's LAN (e.g. the VPS on your tailnet with a
+NAS/router advertising the home subnet), fill in **Settings → Local board
+(via Tailscale)** with the board's LAN IP and Local API key. The pusher then
+uses the board's Local API — which supports per-slide flip transitions — and
+falls back to the cloud key automatically if the tunnel is down. Full setup
+(subnet router, `tailscale up --accept-routes`, Local API enablement):
+[docs/local-push.md](docs/local-push.md). Env seeding: `LOCAL_BOARD_HOST` +
+`VESTABOARD_LOCAL_KEY`.
 
 ### B. Local agent on the Pi (LAN only)
 

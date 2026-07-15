@@ -33,6 +33,10 @@ export interface AppSettings {
   vestaboardKey: string | null;
   vestaboardApiUrl: string | null;
   vestaboardAuthHeader: string | null;
+  /** Board LAN host/IP for Local-API push (reached via Tailscale). */
+  localBoardHost: string | null;
+  /** Local API key — enables per-slide transitions when set with a host. */
+  vestaboardLocalKey: string | null;
   coingeckoApiKey: string | null;
   anthropicApiKey: string | null;
 }
@@ -41,6 +45,8 @@ const SETTING_KEYS: Record<keyof AppSettings, string> = {
   vestaboardKey: 'vestaboard_key',
   vestaboardApiUrl: 'vestaboard_api_url',
   vestaboardAuthHeader: 'vestaboard_auth_header',
+  localBoardHost: 'local_board_host',
+  vestaboardLocalKey: 'vestaboard_local_key',
   coingeckoApiKey: 'coingecko_api_key',
   anthropicApiKey: 'anthropic_api_key',
 };
@@ -276,6 +282,8 @@ export class Store {
       vestaboardKey: this.getSetting(SETTING_KEYS.vestaboardKey),
       vestaboardApiUrl: this.getSetting(SETTING_KEYS.vestaboardApiUrl),
       vestaboardAuthHeader: this.getSetting(SETTING_KEYS.vestaboardAuthHeader),
+      localBoardHost: this.getSetting(SETTING_KEYS.localBoardHost),
+      vestaboardLocalKey: this.getSetting(SETTING_KEYS.vestaboardLocalKey),
       coingeckoApiKey: this.getSetting(SETTING_KEYS.coingeckoApiKey),
       anthropicApiKey: this.getSetting(SETTING_KEYS.anthropicApiKey),
     };

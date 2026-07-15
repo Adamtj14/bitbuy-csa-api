@@ -23,7 +23,7 @@ import {
   mockGames,
   MockProvider,
 } from '@vestaboard/data';
-import { api, ApiError, Me } from './api.js';
+import { api, ApiError, Me, PushStatus } from './api.js';
 import { BoardPreview } from './components/BoardPreview.js';
 import { LoginPage } from './components/LoginPage.js';
 import { AdminPanel } from './components/AdminPanel.js';
@@ -98,9 +98,18 @@ function usePreviewContext(config: BoardConfig | null, now: Date): RenderContext
   };
 }
 
-/** A live view of what the board is showing: cycles the active slides like
- *  the pusher does, and blanks during sleep hours. */
-function OnAirPreview({ config, ctx }: { config: BoardConfig; ctx: RenderContext }) {
+/** A live view of what the board is showing. When cloud push is running it
+ *  mirrors the board's actual last-pushed grid (auto-refreshing); otherwise
+ *  it simulates the rotation locally, blanking during sleep hours. */
+function OnAirPreview({
+  config,
+  ctx,
+  board,
+}: {
+  config: BoardConfig;
+  ctx: RenderContext;
+  board: PushStatus | null;
+}) {
   const model = config.boardModel ?? 'flagship';
   const freqMs = Math.max(config.rotation.frequencySeconds, MIN_FREQUENCY_SECONDS) * 1000;
   const [idx, setIdx] = useState(0);
@@ -108,6 +117,23 @@ function OnAirPreview({ config, ctx }: { config: BoardConfig; ctx: RenderContext
     const id = setInterval(() => setIdx((i) => i + 1), freqMs);
     return () => clearInterval(id);
   }, [freqMs]);
+
+  // Cloud push running → show the board's real state, not a simulation.
+  if (board?.pushEnabled && board.lastGrid) {
+    const pushedAt = board.lastPushAt
+      ? new Date(board.lastPushAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+      : null;
+    return (
+      <>
+        <BoardPreview grid={board.lastGrid} />
+        <p className="hint">
+          <span className="live-dot" /> Live from the board — “{board.lastPushedSlide ?? '…'}”
+          {pushedAt ? ` · flipped at ${pushedAt}` : ''}
+          {board.lastError ? ` · ${board.lastError}` : ''}
+        </p>
+      </>
+    );
+  }
 
   const sleeping = isSleeping(config, ctx.now);
 
@@ -175,6 +201,9 @@ export default function App() {
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
   const now = useNow();
   const ctx = usePreviewContext(config, now);
+  const [board, setBoard] = useState<PushStatus | null>(null);
+  const saveStateRef = useRef<SaveState>('saved');
+  saveStateRef.current = saveState;
 
   useEffect(() => {
     api
@@ -187,6 +216,34 @@ export default function App() {
       })
       .catch(() => setMe(null));
   }, []);
+
+  // Keep the app live without refreshes: mirror the board's real state and
+  // pick up config changes made elsewhere (another device / admin). Remote
+  // config is only applied while local edits are fully saved.
+  useEffect(() => {
+    if (me === 'loading' || me === null) return;
+    let cancelled = false;
+    const pollBoard = () =>
+      api.getBoard().then((b) => {
+        if (!cancelled) setBoard(b);
+      }).catch(() => {});
+    const pollConfig = () =>
+      api.getConfig().then((remote) => {
+        if (cancelled || saveStateRef.current !== 'saved') return;
+        setConfig((cur) =>
+          cur && JSON.stringify(cur) !== JSON.stringify(remote) ? remote : cur,
+        );
+      }).catch(() => {});
+    pollBoard();
+    const id = setInterval(() => {
+      pollBoard();
+      pollConfig();
+    }, 8000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [me]);
 
   const isAdmin = me !== 'loading' && me !== null && me.role === 'admin';
 
@@ -545,7 +602,7 @@ export default function App() {
       <main className="home">
         <section className="panel onair">
           <h2>On the board now</h2>
-          <OnAirPreview config={config} ctx={ctx} />
+          <OnAirPreview config={config} ctx={ctx} board={board} />
           {isAdmin && (
             <PauseControl
               config={config}

@@ -93,3 +93,65 @@ describe('big digital', () => {
     expect(toAscii(grid)).toContain('10:35 AM');
   });
 });
+
+describe('pixel clocks (colour chips as pixels)', () => {
+  const COLOR_MIN = 63, COLOR_MAX = 69; // red..white chips
+  const chips = (grid: number[][]) =>
+    grid.flat().filter((c) => c >= COLOR_MIN && c <= COLOR_MAX);
+
+  it('rainbow: draws chip digits with distinct colours per digit (flagship)', () => {
+    const grid = renderClock(
+      { type: 'clock', style: 'pixel', ...base },
+      at('2026-07-10T16:05:00Z'),
+    );
+    const used = new Set(chips(grid));
+    expect(chips(grid).length).toBeGreaterThan(10);
+    expect(used.size).toBeGreaterThanOrEqual(3); // 4:05 -> 3 digits + colon
+    // AM/PM label on the bottom row
+    expect(grid[5]!.some((c) => c === 16 || c === 1)).toBe(true); // P or A
+  });
+
+  it('rainbow: fits the Note with the 3x3 micro font', () => {
+    const grid = renderClock(
+      { type: 'clock', style: 'pixel', ...base },
+      at('2026-07-10T12:59:00Z'),
+      {},
+      'note',
+    );
+    expect(grid).toHaveLength(3);
+    expect(grid.every((r) => r.length === 15)).toBe(true);
+    expect(chips(grid).length).toBeGreaterThan(8); // 4 digits drawn
+  });
+
+  it('invert: fills the background and draws white digits', () => {
+    const grid = renderClock(
+      { type: 'clock', style: 'pixel-invert', ...base },
+      at('2026-07-10T16:05:00Z'),
+    );
+    // hour 16 -> palette[16 % 6 = 4] = blue (67)
+    expect(grid[0]![0]).toBe(67);
+    expect(grid.flat().filter((c) => c === 69).length).toBeGreaterThan(10); // white digits
+    // no blank cells above the AM/PM row
+    expect(grid.slice(0, 5).flat().every((c) => c >= COLOR_MIN)).toBe(true);
+  });
+
+  it('invert on the Note stays within 15 columns', () => {
+    const grid = renderClock(
+      { type: 'clock', style: 'pixel-invert', ...base },
+      at('2026-07-10T12:59:00Z'),
+      {},
+      'note',
+    );
+    expect(grid).toHaveLength(3);
+    expect(grid.every((r) => r.length === 15)).toBe(true);
+    expect(grid.flat().every((c) => c >= COLOR_MIN && c <= COLOR_MAX)).toBe(true);
+  });
+
+  it('is deterministic and changes by the minute', () => {
+    const a = renderClock({ type: 'clock', style: 'pixel', ...base }, at('2026-07-10T10:30:00Z'));
+    const b = renderClock({ type: 'clock', style: 'pixel', ...base }, at('2026-07-10T10:30:59Z'));
+    const c = renderClock({ type: 'clock', style: 'pixel', ...base }, at('2026-07-10T10:31:00Z'));
+    expect(a).toEqual(b);
+    expect(a).not.toEqual(c);
+  });
+});

@@ -32,6 +32,8 @@ export interface PusherStatus {
   lastPushAt: string | null;
   /** Human-readable last error (rate limit, network, etc.), if any. */
   lastError: string | null;
+  /** The grid the board currently shows (last successful push). */
+  lastGrid?: Grid | null;
 }
 
 export interface PusherDeps {
@@ -195,7 +197,7 @@ export class BoardPusher {
   }
 
   getStatus(): PusherStatus {
-    return { ...this.status };
+    return { ...this.status, lastGrid: this.lastPushed };
   }
 
   private emitStatus(patch: Partial<PusherStatus>): void {

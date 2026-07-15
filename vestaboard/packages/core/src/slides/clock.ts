@@ -1,6 +1,6 @@
 import { COLOR, ColorName } from '../chars.js';
 import { blankGrid, BoardModel, dimsOf, Grid } from '../grid.js';
-import { encodeLine, layoutText } from '../text.js';
+import { encodeLine, layoutText, writeAt } from '../text.js';
 import type { ClockSlideConfig } from '../types.js';
 
 interface TimeParts {
@@ -70,6 +70,98 @@ const DIGIT_FONT: Record<string, number[]> = {
 };
 
 const GLYPH_WIDTH: Record<string, number> = { ':': 1 };
+
+/**
+ * 3x3 micro font for the Note's pixel clock (3 rows total). Too small for
+ * gaps between digits — the pixel styles keep digits apart with colour.
+ */
+const MICRO_FONT: Record<string, number[]> = {
+  '0': [0b111, 0b101, 0b111],
+  '1': [0b010, 0b010, 0b010],
+  '2': [0b110, 0b010, 0b011],
+  '3': [0b111, 0b011, 0b111],
+  '4': [0b101, 0b111, 0b001],
+  '5': [0b011, 0b010, 0b110],
+  '6': [0b100, 0b111, 0b111],
+  '7': [0b111, 0b001, 0b001],
+  '8': [0b111, 0b111, 0b111],
+  '9': [0b111, 0b111, 0b001],
+  ':': [0b1, 0b0, 0b1],
+};
+
+const PIXEL_PALETTE = [COLOR.red, COLOR.orange, COLOR.yellow, COLOR.green, COLOR.blue, COLOR.violet];
+
+/**
+ * The time drawn with colour chips as pixels. Two variants:
+ * - rainbow: each digit its own colour on the dark board;
+ * - invert: white digits on a full colour background tinted by the hour.
+ * Uses the 3x5 font on the flagship (with AM/PM on the bottom row for 12h)
+ * and the 3x3 micro font on the Note. When the assembled time is wider
+ * than the board, the colon is dropped, then inter-digit gaps.
+ */
+function renderPixelClock(
+  parts: TimeParts,
+  hour12: boolean,
+  invert: boolean,
+  model: BoardModel,
+): Grid {
+  const { rows, cols } = dimsOf(model);
+  const tall = rows >= 6;
+  const font = tall ? DIGIT_FONT : MICRO_FONT;
+  const fontH = tall ? 5 : 3;
+
+  const h = hour12 ? (parts.hour24 % 12 === 0 ? 12 : parts.hour24 % 12) : parts.hour24;
+  const hh = hour12 ? String(h) : String(h).padStart(2, '0');
+  const mm = String(parts.minute).padStart(2, '0');
+
+  const widthOf = (chars: string[], gap: number) =>
+    chars.reduce((sum, ch) => sum + (GLYPH_WIDTH[ch] ?? 3), 0) +
+    gap * Math.max(0, chars.length - 1);
+
+  let chars = [...`${hh}:${mm}`];
+  let gap = 1;
+  if (widthOf(chars, gap) > cols) chars = chars.filter((ch) => ch !== ':');
+  if (widthOf(chars, gap) > cols) gap = 0;
+
+  const grid = blankGrid(model);
+  const bg = PIXEL_PALETTE[parts.hour24 % 6]!;
+  if (invert) {
+    for (const row of grid) row.fill(bg);
+  }
+
+  let col = Math.max(0, Math.floor((cols - widthOf(chars, gap)) / 2));
+  let digitIndex = 0;
+  for (const ch of chars) {
+    const glyph = font[ch];
+    const width = GLYPH_WIDTH[ch] ?? 3;
+    const chip = invert
+      ? COLOR.white
+      : ch === ':'
+        ? COLOR.white
+        : PIXEL_PALETTE[digitIndex % 6]!;
+    if (glyph) {
+      for (let r = 0; r < fontH; r++) {
+        const bits = glyph[r] ?? 0;
+        for (let c = 0; c < width; c++) {
+          if ((bits >> (width - 1 - c)) & 1) {
+            const row = grid[r];
+            if (row && col + c < cols) row[col + c] = chip;
+          }
+        }
+      }
+    }
+    if (ch !== ':') digitIndex++;
+    col += width + gap;
+  }
+
+  // 12h flagship: AM/PM on the bottom row (kept on the background in invert).
+  if (tall && hour12) {
+    const label = parts.hour24 < 12 ? 'AM' : 'PM';
+    const row = grid[5]!;
+    writeAt(row, Math.floor((cols - label.length) / 2), label);
+  }
+  return grid;
+}
 
 /**
  * Time as 5-row block digits with AM/PM on the bottom row (needs the
@@ -184,5 +276,9 @@ export function renderClock(
       return renderDigitalDate(parts, hour12, model);
     case 'word':
       return renderWordClock(parts, model);
+    case 'pixel':
+      return renderPixelClock(parts, hour12, false, model);
+    case 'pixel-invert':
+      return renderPixelClock(parts, hour12, true, model);
   }
 }

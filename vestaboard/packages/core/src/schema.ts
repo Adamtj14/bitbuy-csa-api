@@ -20,7 +20,7 @@ const symbolSchema = z.object({
 export const slideConfigSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('clock'),
-    style: z.enum(['big-digital', 'digital-date', 'word']),
+    style: z.enum(['big-digital', 'digital-date', 'word', 'pixel', 'pixel-invert']),
     timeZone: z.string().optional(),
     hour12: z.boolean().optional(),
   }),

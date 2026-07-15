@@ -6,7 +6,7 @@ import type { BoardModel, Grid } from './grid.js';
  */
 export const MIN_FREQUENCY_SECONDS = 15;
 
-export type ClockStyle = 'big-digital' | 'digital-date' | 'word';
+export type ClockStyle = 'big-digital' | 'digital-date' | 'word' | 'pixel' | 'pixel-invert';
 
 export interface ClockSlideConfig {
   type: 'clock';

@@ -45,6 +45,13 @@ beforeAll(async () => {
     baseUrl: 'http://localhost',
     agentToken: 'agent-token-1',
     devFakeAuth: true,
+    getPushStatus: () => ({
+      pushEnabled: true,
+      lastPushedSlide: 'Word clock',
+      lastPushAt: '2026-07-14T12:00:00.000Z',
+      lastError: null,
+      lastGrid: blankGrid(),
+    }),
   });
   await new Promise<void>((resolve) => {
     server = app.listen(0, resolve);
@@ -204,6 +211,17 @@ describe('auth + roles', () => {
       body: JSON.stringify({ vestaboardKey: '' }),
     });
     expect((await cleared.json()).vestaboard.keySet).toBe(false);
+  });
+
+  it('serves live board state to any signed-in user, not anonymously', async () => {
+    const anon = await fetch(`${base}/api/board`);
+    expect(anon.status).toBe(401);
+    const asMember = await invitee.request('/api/board');
+    expect(asMember.status).toBe(200);
+    const body = await asMember.json();
+    expect(body.pushEnabled).toBe(true);
+    expect(body.lastPushedSlide).toBe('Word clock');
+    expect(body.lastGrid).toHaveLength(6);
   });
 
   it('serves config to the agent with a bearer token only', async () => {

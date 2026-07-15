@@ -28,6 +28,8 @@ export interface PushStatus {
   lastPushedSlide: string | null;
   lastPushAt: string | null;
   lastError: string | null;
+  /** The grid the board currently shows (last successful push). */
+  lastGrid?: number[][] | null;
 }
 
 export interface SettingsInfo {
@@ -109,4 +111,6 @@ export const api = {
   getSettings: () => request<SettingsInfo>('/api/settings'),
   putSettings: (patch: SettingsPatch) =>
     request<SettingsInfo>('/api/settings', { method: 'PUT', body: JSON.stringify(patch) }),
+
+  getBoard: () => request<PushStatus | null>('/api/board'),
 };

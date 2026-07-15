@@ -71,6 +71,13 @@ export function apiRouter(options: ApiOptions): Router {
     res.json(store.getConfig());
   });
 
+  // Live board state: what the pusher last flipped onto the board. Lets the
+  // Studio's "On the board now" preview mirror the physical board without a
+  // page refresh. Null until the pusher is wired/pushing.
+  router.get('/api/board', (req, res) => {
+    res.json(options.getPushStatus?.() ?? null);
+  });
+
   // Full-document replace: admin only (used by import + bulk edits).
   router.put('/api/config', requireAdmin, (req, res) => {
     const parsed = boardConfigSchema.safeParse(req.body);

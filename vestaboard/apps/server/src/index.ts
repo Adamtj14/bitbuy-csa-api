@@ -3,9 +3,10 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createApp } from './app.js';
 import { Store } from './db.js';
-import { VestaboardCloudClient } from './vestaboard.js';
+import { RateLimitedError, VestaboardCloudClient } from './vestaboard.js';
+import { LocalBoardClient } from './localboard.js';
 import { buildSources } from './sources.js';
-import { BoardPusher, PusherStatus } from './pusher.js';
+import { BoardPusher, PushClient, PusherStatus } from './pusher.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const BASE_URL = process.env.BASE_URL ?? `http://localhost:${PORT}`;
@@ -38,6 +39,10 @@ function seedSettingsFromEnv(store: Store): void {
   }
   if (!current.coingeckoApiKey && process.env.COINGECKO_API_KEY) {
     patch.coingeckoApiKey = process.env.COINGECKO_API_KEY;
+  }
+  if (!current.vestaboardLocalKey && process.env.VESTABOARD_LOCAL_KEY) {
+    patch.vestaboardLocalKey = process.env.VESTABOARD_LOCAL_KEY;
+    if (process.env.LOCAL_BOARD_HOST) patch.localBoardHost = process.env.LOCAL_BOARD_HOST;
   }
   if (Object.keys(patch).length > 0) {
     store.updateSettings(patch);
@@ -82,14 +87,45 @@ app.listen(PORT, () => {
       coingeckoApiKey: store.getSettings().coingeckoApiKey ?? undefined,
       anthropicApiKey: store.getSettings().anthropicApiKey ?? undefined,
     }),
-    getClient: () => {
+    getClient: (): PushClient | null => {
       const s = store.getSettings();
-      if (!s.vestaboardKey) return null;
-      return new VestaboardCloudClient({
-        token: s.vestaboardKey,
-        url: s.vestaboardApiUrl ?? undefined,
-        header: s.vestaboardAuthHeader ?? undefined,
-      });
+      const cloud = s.vestaboardKey
+        ? new VestaboardCloudClient({
+            token: s.vestaboardKey,
+            url: s.vestaboardApiUrl ?? undefined,
+            header: s.vestaboardAuthHeader ?? undefined,
+          })
+        : null;
+      const local =
+        s.localBoardHost && s.vestaboardLocalKey
+          ? new LocalBoardClient({ host: s.localBoardHost, apiKey: s.vestaboardLocalKey })
+          : null;
+      if (!local && !cloud) return null;
+      if (!local) {
+        return {
+          postMessage: async (grid) => {
+            await cloud!.postMessage(grid);
+            return 'cloud';
+          },
+        };
+      }
+      // Local first (transitions work there); if the tunnel is down, fall
+      // back to the cloud API. A 503 means the board itself refused the
+      // push (15s hardware window) — the cloud would hit the same wall, so
+      // rate limits propagate instead of falling back.
+      return {
+        postMessage: async (grid, transition) => {
+          try {
+            await local.postMessage(grid, transition);
+            return 'local';
+          } catch (err) {
+            if (err instanceof RateLimitedError || !cloud) throw err;
+            console.log(`[pusher] local push failed (${String(err)}) — falling back to cloud`);
+            await cloud.postMessage(grid);
+            return 'cloud';
+          }
+        },
+      };
     },
     now: () => new Date(),
     log: (message) => console.log(`[pusher] ${message}`),

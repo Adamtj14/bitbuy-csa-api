@@ -30,10 +30,13 @@ export interface PushStatus {
   lastError: string | null;
   /** The grid the board currently shows (last successful push). */
   lastGrid?: number[][] | null;
+  /** Transport of the last push: 'local' means transitions are active. */
+  via?: 'local' | 'cloud' | null;
 }
 
 export interface SettingsInfo {
   vestaboard: { keySet: boolean; apiUrl: string | null; authHeader: string | null };
+  local: { keySet: boolean; host: string | null };
   coingecko: { keySet: boolean };
   anthropic: { keySet: boolean };
   push: PushStatus | null;
@@ -43,6 +46,8 @@ export interface SettingsPatch {
   vestaboardKey?: string | null;
   vestaboardApiUrl?: string | null;
   vestaboardAuthHeader?: string | null;
+  localBoardHost?: string | null;
+  vestaboardLocalKey?: string | null;
   coingeckoApiKey?: string | null;
   anthropicApiKey?: string | null;
 }

@@ -213,6 +213,26 @@ describe('auth + roles', () => {
     expect((await cleared.json()).vestaboard.keySet).toBe(false);
   });
 
+  it('stores local-board settings; the local key stays write-only', async () => {
+    const put = await admin.request('/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify({
+        localBoardHost: ' 192.168.1.40 ',
+        vestaboardLocalKey: 'local-secret',
+      }),
+    });
+    expect(put.status).toBe(200);
+    const body = await put.json();
+    expect(body.local).toEqual({ keySet: true, host: '192.168.1.40' });
+    expect(JSON.stringify(body)).not.toContain('local-secret');
+
+    const cleared = await admin.request('/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ vestaboardLocalKey: null, localBoardHost: null }),
+    });
+    expect((await cleared.json()).local).toEqual({ keySet: false, host: null });
+  });
+
   it('serves live board state to any signed-in user, not anonymously', async () => {
     const anon = await fetch(`${base}/api/board`);
     expect(anon.status).toBe(401);

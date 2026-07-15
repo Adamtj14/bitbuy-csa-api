@@ -18,10 +18,23 @@ import {
   rotationSequence,
   Slide,
   SportsSlideConfig,
+  TransitionStrategy,
   WeatherData,
 } from '@vestaboard/core';
-import { RateLimitedError, VestaboardCloudClient } from './vestaboard.js';
+import { RateLimitedError } from './vestaboard.js';
 import { DataSources } from './sources.js';
+
+/** Which transport delivered a push. */
+export type PushPath = 'local' | 'cloud';
+
+/**
+ * Anything that can put a grid on the board. The transition only takes
+ * effect on the Local API path (the cloud API has no strategy parameter);
+ * clients that know their transport return it so status can show it.
+ */
+export interface PushClient {
+  postMessage(grid: Grid, transition?: TransitionStrategy): Promise<PushPath | void>;
+}
 
 export interface PusherStatus {
   /** Whether a Vestaboard key is currently configured. */
@@ -34,17 +47,19 @@ export interface PusherStatus {
   lastError: string | null;
   /** The grid the board currently shows (last successful push). */
   lastGrid?: Grid | null;
+  /** Transport of the last successful push (local = transitions active). */
+  via?: PushPath | null;
 }
 
 export interface PusherDeps {
   getConfig(): BoardConfig;
   sources: DataSources;
   /**
-   * The cloud client to push with, or null when no Vestaboard key is
+   * The client to push with, or null when no Vestaboard key is
    * configured. Called each tick so a key set at runtime (from the
    * Settings screen) is picked up without a restart.
    */
-  getClient(): Pick<VestaboardCloudClient, 'postMessage'> | null;
+  getClient(): PushClient | null;
   now(): Date;
   log(message: string): void;
   /** Optional: notified after each tick with the current push status. */
@@ -316,7 +331,7 @@ export class BoardPusher {
 
   /** Build context for a slide, render, and push it. */
   private async pushSlide(
-    client: Pick<VestaboardCloudClient, 'postMessage'>,
+    client: PushClient,
     slide: Slide,
     enabled: Slide[],
     now: Date,
@@ -325,7 +340,7 @@ export class BoardPusher {
   ): Promise<void> {
     const ctx = await this.buildContext(slide, enabled, now, model);
     ctx.model = model;
-    await this.pushGrid(client, render(slide.config, ctx), label);
+    await this.pushGrid(client, render(slide.config, ctx), label, slide.transition);
   }
 
   /** ms to sleep while an interrupt is held — wake near its expiry. */
@@ -389,22 +404,24 @@ export class BoardPusher {
 
   /** Push a grid, skipping if the board already shows it; updates status. */
   private async pushGrid(
-    client: Pick<VestaboardCloudClient, 'postMessage'>,
+    client: PushClient,
     grid: Grid,
     label: string,
+    transition?: TransitionStrategy,
   ): Promise<void> {
     if (this.lastPushed && gridsEqual(grid, this.lastPushed)) {
       this.deps.log(`skip "${label}" (board already shows this grid)`);
       return;
     }
     try {
-      await client.postMessage(grid);
+      const via = (await client.postMessage(grid, transition)) ?? 'cloud';
       this.lastPushed = grid;
-      this.deps.log(`pushed "${label}"`);
+      this.deps.log(`pushed "${label}" via ${via}`);
       this.emitStatus({
         lastPushedSlide: label,
         lastPushAt: this.deps.now().toISOString(),
         lastError: null,
+        via,
       });
     } catch (err) {
       if (err instanceof RateLimitedError) {

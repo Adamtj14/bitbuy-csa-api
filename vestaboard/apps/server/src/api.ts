@@ -243,6 +243,7 @@ export function apiRouter(options: ApiOptions): Router {
         apiUrl: s.vestaboardApiUrl,
         authHeader: s.vestaboardAuthHeader,
       },
+      local: { keySet: Boolean(s.vestaboardLocalKey), host: s.localBoardHost },
       coingecko: { keySet: Boolean(s.coingeckoApiKey) },
       anthropic: { keySet: Boolean(s.anthropicApiKey) },
       push: options.getPushStatus?.() ?? null,
@@ -257,6 +258,8 @@ export function apiRouter(options: ApiOptions): Router {
     vestaboardKey: z.string().nullable().optional(),
     vestaboardApiUrl: z.string().nullable().optional(),
     vestaboardAuthHeader: z.string().nullable().optional(),
+    localBoardHost: z.string().nullable().optional(),
+    vestaboardLocalKey: z.string().nullable().optional(),
     coingeckoApiKey: z.string().nullable().optional(),
     anthropicApiKey: z.string().nullable().optional(),
   });

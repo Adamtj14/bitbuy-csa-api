@@ -589,6 +589,14 @@ button.primary:hover:not(:disabled) {
   gap: 10px;
 }
 
+.settings-subhead {
+  margin: 18px 0 6px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #9aa3ad;
+}
+
 .settings-actions {
   display: flex;
   align-items: center;

@@ -17,6 +17,8 @@ export function SettingsPanel() {
   const [authHeader, setAuthHeader] = useState('');
   const [coingeckoKey, setCoingeckoKey] = useState('');
   const [anthropicKey, setAnthropicKey] = useState('');
+  const [localHost, setLocalHost] = useState('');
+  const [localKey, setLocalKey] = useState('');
   const [advanced, setAdvanced] = useState(false);
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -29,6 +31,7 @@ export function SettingsPanel() {
         setInfo(s);
         setApiUrl(s.vestaboard.apiUrl ?? '');
         setAuthHeader(s.vestaboard.authHeader ?? '');
+        setLocalHost(s.local.host ?? '');
       })
       .catch((e) => setError(e instanceof ApiError ? e.message : String(e)));
 
@@ -51,10 +54,13 @@ export function SettingsPanel() {
         ...(key.trim() ? { vestaboardKey: key.trim() } : {}),
         vestaboardApiUrl: apiUrl.trim() || null,
         vestaboardAuthHeader: authHeader.trim() || null,
+        localBoardHost: localHost.trim() || null,
+        ...(localKey.trim() ? { vestaboardLocalKey: localKey.trim() } : {}),
         ...(coingeckoKey.trim() ? { coingeckoApiKey: coingeckoKey.trim() } : {}),
         ...(anthropicKey.trim() ? { anthropicApiKey: anthropicKey.trim() } : {}),
       });
       setKey('');
+      setLocalKey('');
       setCoingeckoKey('');
       setAnthropicKey('');
       setNote('Saved.');
@@ -82,18 +88,22 @@ export function SettingsPanel() {
   if (!info) return <p className="hint">Loading settings…</p>;
 
   const push = info.push;
-  const status = !info.vestaboard.keySet
+  const anyKey = info.vestaboard.keySet || (info.local.keySet && Boolean(info.local.host));
+  const status = !anyKey
     ? { text: 'Not pushing — no key set', cls: 'status-off' }
     : push?.pushEnabled
-      ? { text: 'Pushing to the board', cls: 'status-on' }
+      ? push.via === 'local'
+        ? { text: 'Pushing locally — transitions active', cls: 'status-on' }
+        : { text: 'Pushing to the board (cloud)', cls: 'status-on' }
       : { text: 'Key set — starting…', cls: 'status-pending' };
 
   return (
     <div className="settings">
       <div className={`status-pill ${status.cls}`}>{status.text}</div>
-      {info.vestaboard.keySet && push && (
+      {anyKey && push && (
         <p className="hint">
           Last pushed: {push.lastPushedSlide ? `“${push.lastPushedSlide}” · ${ago(push.lastPushAt)}` : '—'}
+          {push.lastPushedSlide && push.via ? ` · via ${push.via}` : ''}
           {push.lastError ? ` · ${push.lastError}` : ''}
         </p>
       )}
@@ -113,6 +123,33 @@ export function SettingsPanel() {
       <p className="hint">
         Enable the Read-Write API in the API tab at web.vestaboard.com and paste the token
         here. Saving it starts cloud push within a few seconds — no redeploy.
+      </p>
+
+      <h3 className="settings-subhead">Local board (via Tailscale)</h3>
+      <label className="field">
+        <span>Board LAN IP / host</span>
+        <input
+          autoComplete="off"
+          placeholder="e.g. 192.168.1.40"
+          value={localHost}
+          onChange={(e) => setLocalHost(e.target.value)}
+        />
+      </label>
+      <label className="field">
+        <span>Local API key</span>
+        <input
+          type="password"
+          autoComplete="off"
+          placeholder={info.local.keySet ? '•••••••• (set — type to replace)' : 'from Local API enablement'}
+          value={localKey}
+          onChange={(e) => setLocalKey(e.target.value)}
+        />
+      </label>
+      <p className="hint">
+        With the VPS on your tailnet (NAS as subnet router), the server pushes straight
+        to the board's Local API — that's what makes per-slide transitions work. If the
+        tunnel drops, pushes fall back to the cloud key automatically. Setup steps:
+        docs/local-push.md in the repo.
       </p>
 
       <div className="settings-actions">

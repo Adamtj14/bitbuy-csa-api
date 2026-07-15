@@ -77,8 +77,8 @@ describe('renderers on the Note (3x15)', () => {
     );
     expect(toAscii(grid)).toMatchInlineSnapshot(`
       "+---------------+
-      |G BTC  91234.12|
-      |R SHOP   145.30|
+      |G BTC    91.23K|
+      |R SHOP    145.3|
       |               |
       +---------------+"
     `);

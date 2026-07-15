@@ -188,6 +188,33 @@ function OnAirPreview({
 
 type SaveState = 'saved' | 'saving' | 'error';
 
+/** Seconds-per-slide input that can be freely cleared while typing; the
+ *  value is clamped and saved on blur (no forced leading zero). */
+function FrequencyInput({
+  value,
+  onCommit,
+}: {
+  value: number;
+  onCommit: (seconds: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => setDraft(String(value)), [value]);
+  return (
+    <input
+      type="number"
+      min={MIN_FREQUENCY_SECONDS}
+      inputMode="numeric"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const seconds = clampFrequency(Number(draft));
+        setDraft(String(seconds));
+        if (seconds !== value) onCommit(seconds);
+      }}
+    />
+  );
+}
+
 export default function App() {
   const [me, setMe] = useState<Me | null | 'loading'>('loading');
   const [config, setConfig] = useState<BoardConfig | null>(null);
@@ -495,21 +522,10 @@ export default function App() {
                 </label>
                 <label className="field">
                   <span>Seconds per slide</span>
-                  <input
-                    type="number"
-                    min={MIN_FREQUENCY_SECONDS}
+                  <FrequencyInput
                     value={config.rotation.frequencySeconds}
-                    onChange={(e) =>
-                      adminUpdate((c) => ({
-                        ...c,
-                        rotation: { frequencySeconds: Number(e.target.value) },
-                      }))
-                    }
-                    onBlur={(e) =>
-                      adminUpdate((c) => ({
-                        ...c,
-                        rotation: { frequencySeconds: clampFrequency(Number(e.target.value)) },
-                      }))
+                    onCommit={(seconds) =>
+                      adminUpdate((c) => ({ ...c, rotation: { frequencySeconds: seconds } }))
                     }
                   />
                 </label>

@@ -1,4 +1,4 @@
-import { DaySchedule } from '@vestaboard/core';
+import { DaySchedule, hasSchedule } from '@vestaboard/core';
 
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
@@ -29,7 +29,7 @@ export function ScheduleEditor({
           <button
             key={label}
             type="button"
-            className={`chip ${days.has(i) ? 'chip-on' : ''}`}
+            className={`chip chip-day ${days.has(i) ? 'chip-on' : ''}`}
             onClick={() => toggleDay(i)}
             title={`Toggle ${label}`}
           >
@@ -46,6 +46,11 @@ export function ScheduleEditor({
           <span>To</span>
           <input type="time" value={s.end ?? ''} onChange={(e) => setTime('end', e.target.value)} />
         </label>
+        {hasSchedule(s) && (
+          <button type="button" onClick={() => onChange({})} title="Remove the schedule">
+            Clear
+          </button>
+        )}
       </div>
     </div>
   );

@@ -64,7 +64,7 @@ describe('renderSports', () => {
 
   it('shows a message when no games', () => {
     const grid = renderSports({ type: 'sports', league: 'mlb' }, games);
-    expect(toAscii(grid)).toContain('NO GAMES TODAY');
+    expect(toAscii(grid)).toContain('NO MLB GAMES TODAY');
   });
 
   it('onlyPinned shows just the picked teams’ games', () => {
@@ -83,6 +83,6 @@ describe('renderSports', () => {
       { type: 'sports', league: 'nhl', teams: ['ZZZ'], onlyPinned: true },
       games,
     );
-    expect(toAscii(grid)).toContain('NO TEAM GAMES');
+    expect(toAscii(grid)).toContain('NO NHL TEAM GAMES');
   });
 });

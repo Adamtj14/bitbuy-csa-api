@@ -58,7 +58,16 @@ export function renderSports(
     forLeague = forLeague.filter(involvesPinned);
   }
   if (forLeague.length === 0) {
-    const message = config.onlyPinned && pinned.length > 0 ? 'NO TEAM GAMES' : 'NO GAMES TODAY';
+    // Name the league so an empty slide still says what it is (offseason).
+    const league = config.league.toUpperCase();
+    const message =
+      config.onlyPinned && pinned.length > 0
+        ? cols >= 22
+          ? `NO ${league} TEAM GAMES`
+          : 'NO TEAM GAMES'
+        : cols >= 22
+          ? `NO ${league} GAMES TODAY`
+          : `NO ${league} GAMES`;
     grid[Math.min(row + 1, rows - 1)] = encodeLine(message, 'center', cols);
     return grid;
   }

@@ -1,17 +1,24 @@
 import type { Quote, SymbolSpec } from '@vestaboard/core';
 import type { TickerProvider } from './provider.js';
 
-interface YahooQuote {
-  symbol: string;
-  regularMarketPrice?: number;
-  regularMarketChangePercent?: number;
+interface ChartMeta {
   currency?: string;
+  regularMarketPrice?: number;
+  chartPreviousClose?: number;
+  previousClose?: number;
 }
 
-const ENDPOINT = 'https://query1.finance.yahoo.com/v7/finance/quote';
+interface ChartResponse {
+  chart?: { result?: Array<{ meta?: ChartMeta }> };
+}
+
+// Yahoo retired the unauthenticated v7 quote endpoint (it now returns
+// 401 Unauthorized), so quotes come from the still-public v8 chart
+// endpoint — one request per symbol, cached upstream for ~60s.
+const ENDPOINT = 'https://query1.finance.yahoo.com/v8/finance/chart';
 
 /**
- * US + TMX stock quotes from Yahoo Finance's public quote endpoint.
+ * US + TMX stock quotes from Yahoo Finance's public chart endpoint.
  * TMX symbols are queried with Yahoo's ".TO" suffix ("SHOP" -> "SHOP.TO").
  */
 export class YahooProvider implements TickerProvider {
@@ -29,10 +36,9 @@ export class YahooProvider implements TickerProvider {
     return symbol;
   }
 
-  async getQuotes(specs: SymbolSpec[]): Promise<Quote[]> {
-    if (specs.length === 0) return [];
-    const symbols = specs.map((s) => this.toYahooSymbol(s)).join(',');
-    const url = `${this.endpoint}?symbols=${encodeURIComponent(symbols)}`;
+  private async fetchQuote(spec: SymbolSpec): Promise<Quote> {
+    const symbol = this.toYahooSymbol(spec);
+    const url = `${this.endpoint}/${encodeURIComponent(symbol)}?range=1d&interval=1d`;
     const res = await fetch(url, {
       headers: {
         accept: 'application/json',
@@ -40,25 +46,24 @@ export class YahooProvider implements TickerProvider {
         'user-agent': 'Mozilla/5.0 (compatible; vestaboard-agent)',
       },
     });
-    if (!res.ok) throw new Error(`yahoo quote ${res.status}`);
-    const body = (await res.json()) as {
-      quoteResponse?: { result?: YahooQuote[] };
+    if (!res.ok) throw new Error(`yahoo chart ${res.status}`);
+    const body = (await res.json()) as ChartResponse;
+    const meta = body.chart?.result?.[0]?.meta;
+    const price = meta?.regularMarketPrice;
+    if (price === undefined) throw new Error(`yahoo: no price for ${symbol}`);
+    const previous = meta?.chartPreviousClose ?? meta?.previousClose;
+    return {
+      symbol: spec.symbol,
+      market: spec.market,
+      price,
+      changePercent: previous ? ((price - previous) / previous) * 100 : 0,
+      currency: meta?.currency ?? (spec.market === 'tmx' ? 'CAD' : 'USD'),
     };
-    const byYahoo = new Map(
-      (body.quoteResponse?.result ?? []).map((q) => [q.symbol.toUpperCase(), q]),
-    );
-    const quotes: Quote[] = [];
-    for (const spec of specs) {
-      const q = byYahoo.get(this.toYahooSymbol(spec));
-      if (!q || q.regularMarketPrice === undefined) continue;
-      quotes.push({
-        symbol: spec.symbol,
-        market: spec.market,
-        price: q.regularMarketPrice,
-        changePercent: q.regularMarketChangePercent ?? 0,
-        currency: q.currency ?? (spec.market === 'tmx' ? 'CAD' : 'USD'),
-      });
-    }
-    return quotes;
+  }
+
+  async getQuotes(specs: SymbolSpec[]): Promise<Quote[]> {
+    if (specs.length === 0) return [];
+    const results = await Promise.allSettled(specs.map((spec) => this.fetchQuote(spec)));
+    return results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
   }
 }

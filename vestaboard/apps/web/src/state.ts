@@ -111,7 +111,7 @@ export function newSlide(
     case 'sports':
       return {
         ...base,
-        name: 'Scores',
+        name: 'NHL scores',
         config: { type: 'sports', league: 'nhl', teams: [] },
       };
   }

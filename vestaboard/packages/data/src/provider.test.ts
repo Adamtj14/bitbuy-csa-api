@@ -48,23 +48,47 @@ describe('BitbuyProvider', () => {
 });
 
 describe('YahooProvider', () => {
-  it('adds .TO for TMX symbols and maps results back', async () => {
-    const spy = mockFetch({
-      quoteResponse: {
-        result: [
-          { symbol: 'SHOP.TO', regularMarketPrice: 145.3, regularMarketChangePercent: 1.5, currency: 'CAD' },
-          { symbol: 'AAPL', regularMarketPrice: 250.1, regularMarketChangePercent: -0.4, currency: 'USD' },
-        ],
-      },
+  const chart = (meta: Record<string, unknown>) =>
+    new Response(JSON.stringify({ chart: { result: [{ meta }] } }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
     });
+
+  it('adds .TO for TMX symbols and computes change from previous close', async () => {
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async (input) => {
+        const url = String(input);
+        if (url.includes('SHOP.TO')) {
+          return chart({ currency: 'CAD', regularMarketPrice: 145.3, chartPreviousClose: 143.15 });
+        }
+        return chart({ currency: 'USD', regularMarketPrice: 250.1, chartPreviousClose: 251.1 });
+      });
     const provider = new YahooProvider();
     const quotes = await provider.getQuotes([
       { symbol: 'SHOP', market: 'tmx' },
       { symbol: 'AAPL', market: 'us' },
     ]);
-    expect(spy.mock.calls[0]?.[0]).toContain('SHOP.TO');
+    const urls = spy.mock.calls.map((c) => String(c[0]));
+    expect(urls.some((u) => u.includes('SHOP.TO'))).toBe(true);
     expect(quotes).toHaveLength(2);
     expect(quotes[0]).toMatchObject({ symbol: 'SHOP', price: 145.3, currency: 'CAD' });
+    expect(quotes[0]?.changePercent).toBeCloseTo(1.5, 1);
+  });
+
+  it('drops symbols whose chart request fails, keeps the rest', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('BAD')) return new Response('', { status: 404 });
+      return chart({ currency: 'USD', regularMarketPrice: 100, chartPreviousClose: 100 });
+    });
+    const provider = new YahooProvider();
+    const quotes = await provider.getQuotes([
+      { symbol: 'BAD', market: 'us' },
+      { symbol: 'AAPL', market: 'us' },
+    ]);
+    expect(quotes).toHaveLength(1);
+    expect(quotes[0]?.symbol).toBe('AAPL');
   });
 });
 

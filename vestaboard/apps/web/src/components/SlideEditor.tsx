@@ -66,7 +66,9 @@ export function SlideEditor({ slide, previewGrid, canPin, onChange }: SlideEdito
         <div className="transition-inline">
           <TransitionDemo grid={previewGrid} strategy={slide.transition} />
           <span className="hint">
-            Live demo of the {slide.transition ?? 'default'} flip.
+            Live demo of the {slide.transition ?? 'default'} flip. Note: only the
+            local (Pi) agent can request a flip style — Vestaboard's cloud API
+            always uses the board's built-in flip.
           </span>
         </div>
       )}

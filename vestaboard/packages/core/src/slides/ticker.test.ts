@@ -27,9 +27,9 @@ describe('renderTicker', () => {
     expect(toAscii(grid)).toMatchInlineSnapshot(`
       "+----------------------+
       |       MARKETS        |
-      |G BTC      91234 +2.3%|
-      |R ETH    4123.55 -1.2%|
-      |G SHOP    145.30 +0.0%|
+      |G BTC     91.23K +2.3%|
+      |R ETH       4124 -1.2%|
+      |G SHOP     145.3 +0.0%|
       |                      |
       |                      |
       +----------------------+"

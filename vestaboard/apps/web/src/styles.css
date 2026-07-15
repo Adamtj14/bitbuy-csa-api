@@ -300,19 +300,25 @@ button:disabled {
   border-top: 1px solid #2a2e34;
 }
 
-.pause-row,
-.pause-active {
+.board-controls {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.pause-label {
+.mode-chip {
   font-size: 13px;
-  font-weight: 600;
-  opacity: 0.9;
-  margin-right: 2px;
+  padding: 7px 12px;
+}
+
+button.primary {
+  background: #244a86;
+  border-color: #3c6cb4;
+}
+
+button.primary:hover:not(:disabled) {
+  background: #2c579c;
 }
 
 .live-dot {
@@ -645,6 +651,17 @@ button:disabled {
   color: #e8e6e1;
 }
 
+/* Day-of-week chips: fixed-size true circles, unlike variable-width pills. */
+.chip-day {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* ---- Schedule editor ---- */
 .schedule-editor {
   display: flex;
@@ -779,19 +796,6 @@ button:disabled {
     justify-content: flex-end;
   }
 
-  /* Pause control: label on its own line, durations in one tidy row. */
-  .pause-label {
-    flex-basis: 100%;
-  }
-  .pause-row button {
-    flex: 1 1 0;
-    min-width: 52px;
-    padding: 6px 4px;
-  }
-  .pause-row .field.checkbox {
-    flex-basis: 100%;
-  }
-
   /* Editor rows wrap instead of spilling; fixed widths become flexible. */
   .editor-row {
     flex-wrap: wrap;
@@ -851,6 +855,12 @@ button:disabled {
   /* Comfortable tap targets. */
   button {
     min-height: 40px;
+  }
+
+  /* Day chips must stay square or the 40px tap minimum ovals them. */
+  .chip-day {
+    width: 40px;
+    height: 40px;
   }
 
   .panel {

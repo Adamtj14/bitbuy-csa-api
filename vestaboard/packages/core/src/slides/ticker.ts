@@ -3,11 +3,27 @@ import { blankGrid, BoardModel, dimsOf, Grid } from '../grid.js';
 import { encodeLine, writeAt } from '../text.js';
 import type { Quote, TickerSlideConfig } from '../types.js';
 
-/** Format a price into at most `max` characters, preferring cents. */
+/** Up to 4 significant digits, no trailing zeros ("240.5", "9123"). */
+function sig4(value: number): string {
+  let s = value.toPrecision(4);
+  if (s.includes('e')) return String(Math.round(value));
+  if (s.includes('.')) s = s.replace(/\.?0+$/, '');
+  return s;
+}
+
+/**
+ * Prices cap at 4 digits so big numbers stay scannable on the board:
+ * 91234 -> "91.23K", 1234567 -> "1.235M", 240.5 -> "240.5".
+ */
 function formatPrice(price: number, max: number): string {
   if (!Number.isFinite(price)) return '-';
-  let s = price >= 1 ? price.toFixed(2) : price.toFixed(4);
-  if (s.length > max) s = String(Math.round(price));
+  let s: string;
+  if (price >= 1_000_000) s = `${sig4(price / 1_000_000)}M`;
+  else if (price >= 10_000) s = `${sig4(price / 1_000)}K`;
+  else s = sig4(price);
+  if (s.length > max) {
+    s = price >= 1 ? String(Math.round(price)) : price.toFixed(max - 2);
+  }
   return s;
 }
 
@@ -23,8 +39,8 @@ function formatChange(pct: number): string {
  * right-aligned price and percent change. The Note's 15 columns drop
  * the percent column and shorten the symbol:
  *
- *   flagship:  G BTC    91234.12 +2.3%
- *   note:      G BTC   91234.12
+ *   flagship:  G BTC      91.23K +2.3%
+ *   note:      G BTC     91.23K
  */
 function quoteRow(quote: Quote, cols: number): number[] {
   const row = Array<number>(cols).fill(BLANK);

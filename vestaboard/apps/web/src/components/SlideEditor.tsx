@@ -224,11 +224,11 @@ function TickerEditor({
         />
       </label>
       {config.symbols.map((spec, i) => (
-        <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div key={i} className="editor-row">
           <input
             value={spec.symbol}
             onChange={(e) => setSymbol(i, { symbol: e.target.value.toUpperCase() })}
-            style={{ width: 120 }}
+            className="w-sm"
           />
           <select
             value={spec.market}
@@ -366,10 +366,10 @@ function NewsEditor({
       </label>
       <span style={{ fontSize: 13, opacity: 0.8 }}>RSS/Atom feeds (first working one wins)</span>
       {config.feeds.map((feed, i) => (
-        <div key={i} style={{ display: 'flex', gap: 8 }}>
+        <div key={i} className="editor-row">
           <input
             value={feed}
-            style={{ flex: 1 }}
+            className="grow"
             onChange={(e) => setFeed(i, e.target.value)}
           />
           <button
@@ -472,17 +472,17 @@ function WorldClockEditor({
         One row per time zone (up to 6 on the flagship, 3 on the Note).
       </span>
       {config.zones.map((zone, i) => (
-        <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div key={i} className="editor-row">
           <input
             placeholder="LABEL"
             value={zone.label}
-            style={{ width: 110 }}
+            className="w-sm"
             onChange={(e) => setZone(i, { label: e.target.value.toUpperCase() })}
           />
           <input
             placeholder="America/Toronto"
             value={zone.timeZone}
-            style={{ flex: 1, minWidth: 150 }}
+            className="grow"
             onChange={(e) => setZone(i, { timeZone: e.target.value })}
           />
           <button
@@ -551,11 +551,11 @@ function MultiWeatherEditor({
         </label>
       </div>
       {config.locations.map((loc, i) => (
-        <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div key={i} className="editor-row">
           <input
             placeholder="NAME"
             value={loc.name}
-            style={{ width: 110 }}
+            className="w-sm"
             onChange={(e) => setLoc(i, { name: e.target.value.toUpperCase() })}
           />
           <input
@@ -563,7 +563,7 @@ function MultiWeatherEditor({
             step="0.0001"
             placeholder="lat"
             value={loc.latitude}
-            style={{ width: 100 }}
+            className="w-xs"
             onChange={(e) => setLoc(i, { latitude: Number(e.target.value) })}
           />
           <input
@@ -571,7 +571,7 @@ function MultiWeatherEditor({
             step="0.0001"
             placeholder="long"
             value={loc.longitude}
-            style={{ width: 100 }}
+            className="w-xs"
             onChange={(e) => setLoc(i, { longitude: Number(e.target.value) })}
           />
           <button

@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { BoardConfig, isPaused, PAUSE_PATTERN_NAMES, randomPausePatternId } from '@vestaboard/core';
 
 const DURATIONS: Array<{ label: string; minutes: number }> = [
-  { label: '30 min', minutes: 30 },
-  { label: '1 h', minutes: 60 },
-  { label: '2 h', minutes: 120 },
-  { label: '4 h', minutes: 240 },
-  { label: '6 h', minutes: 360 },
+  { label: '30m', minutes: 30 },
+  { label: '1h', minutes: 60 },
+  { label: '2h', minutes: 120 },
+  { label: '4h', minutes: 240 },
+  { label: '6h', minutes: 360 },
 ];
 
 /**

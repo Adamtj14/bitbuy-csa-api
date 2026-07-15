@@ -372,11 +372,35 @@ button.primary:hover:not(:disabled) {
   border: 1px solid #2a2e34;
   border-radius: 10px;
   cursor: pointer;
+  transition: transform 120ms ease;
+  user-select: none;
 }
 
 .slide-list li.selected {
   border-color: #4f8ef7;
   background: #1d2432;
+}
+
+/* The row being dragged rides the pointer above its siblings. */
+.slide-list li.dragging {
+  transition: none;
+  position: relative;
+  z-index: 2;
+  border-color: #4f8ef7;
+  background: #1d2432;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55);
+}
+
+/* touch-action: none lets pointermove track a finger instead of scrolling. */
+.drag-handle {
+  touch-action: none;
+  cursor: grab;
+  font-size: 16px;
+  letter-spacing: 1px;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
 }
 
 .thumb {

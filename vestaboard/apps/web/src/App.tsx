@@ -231,6 +231,13 @@ export default function App() {
   const [board, setBoard] = useState<PushStatus | null>(null);
   const saveStateRef = useRef<SaveState>('saved');
   saveStateRef.current = saveState;
+  // Drag-to-reorder state for the slide list.
+  const listRef = useRef<HTMLUListElement>(null);
+  const [drag, setDrag] = useState<{ id: string; from: number; to: number; dy: number } | null>(
+    null,
+  );
+  const dragMids = useRef<number[]>([]);
+  const dragStartY = useRef(0);
 
   useEffect(() => {
     api
@@ -361,21 +368,73 @@ export default function App() {
     if (selectedId === id) setSelectedId(null);
   };
 
-  const move = (id: string, dir: -1 | 1) => {
-    const idx = slides.findIndex((s) => s.id === id);
-    const other = slides[idx + dir];
-    const mine = slides[idx];
-    if (!other || !mine) return;
+  /** Drop the slide at `from` into slot `to` and renumber the whole list. */
+  const commitMove = (from: number, to: number) => {
+    if (from === to) return;
+    const arr = [...slides];
+    const [moved] = arr.splice(from, 1);
+    if (!moved) return;
+    arr.splice(to, 0, moved);
+    const orderOf = new Map(arr.map((s, i) => [s.id, i]));
     adminUpdate((c) => ({
       ...c,
-      slides: c.slides.map((s) =>
-        s.id === mine.id
-          ? { ...s, order: other.order }
-          : s.id === other.id
-            ? { ...s, order: mine.order }
-            : s,
-      ),
+      slides: c.slides.map((s) => ({ ...s, order: orderOf.get(s.id) ?? s.order })),
     }));
+  };
+
+  // Pointer-based drag (works for mouse and touch — the handle sets
+  // touch-action: none). Row midpoints are measured once at grab time;
+  // the hovered slot is whichever midpoint the dragged row is nearest.
+  const startDrag = (e: React.PointerEvent<HTMLButtonElement>, id: string, index: number) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const items = listRef.current?.querySelectorAll('li') ?? [];
+    dragMids.current = Array.from(items).map((el) => {
+      const r = el.getBoundingClientRect();
+      return r.top + r.height / 2;
+    });
+    dragStartY.current = e.clientY;
+    setDrag({ id, from: index, to: index, dy: 0 });
+  };
+
+  const moveDrag = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!drag) return;
+    const dy = e.clientY - dragStartY.current;
+    const y = (dragMids.current[drag.from] ?? 0) + dy;
+    let to = drag.from;
+    let best = Infinity;
+    dragMids.current.forEach((mid, i) => {
+      const d = Math.abs(mid - y);
+      if (d < best) {
+        best = d;
+        to = i;
+      }
+    });
+    setDrag((d) => (d ? { ...d, to, dy } : d));
+  };
+
+  const endDrag = () => {
+    if (!drag) return;
+    commitMove(drag.from, drag.to);
+    setDrag(null);
+  };
+
+  /** While dragging, the grabbed row follows the pointer and the rows it
+   *  passes shift one slot to preview the drop. */
+  const dragStyle = (id: string, i: number): React.CSSProperties | undefined => {
+    if (!drag) return undefined;
+    if (id === drag.id) {
+      return { transform: `translateY(${drag.dy}px)` };
+    }
+    const mids = dragMids.current;
+    const step = mids.length > 1 ? (mids[1] ?? 0) - (mids[0] ?? 0) : 0;
+    if (drag.from < drag.to && i > drag.from && i <= drag.to) {
+      return { transform: `translateY(${-step}px)` };
+    }
+    if (drag.to < drag.from && i >= drag.to && i < drag.from) {
+      return { transform: `translateY(${step}px)` };
+    }
+    return undefined;
   };
 
   const importConfig = (file: File) => {
@@ -642,11 +701,14 @@ export default function App() {
           <p className="hint" style={{ marginTop: 0 }}>
             Tap a slide to preview and edit it. {isAdmin ? 'Toggle the checkbox to put it in rotation.' : ''}
           </p>
-          <ul className="slide-list">
+          <ul className="slide-list" ref={listRef}>
             {slides.map((slide, i) => (
               <li
                 key={slide.id}
-                className={selected?.id === slide.id ? 'selected' : ''}
+                className={`${selected?.id === slide.id ? 'selected' : ''} ${
+                  drag?.id === slide.id ? 'dragging' : ''
+                }`}
+                style={dragStyle(slide.id, i)}
                 onClick={() => setSelectedId(slide.id)}
               >
                 <input
@@ -674,8 +736,18 @@ export default function App() {
                       >
                         📌
                       </button>
-                      <button disabled={i === 0} onClick={(e) => { e.stopPropagation(); move(slide.id, -1); }}>↑</button>
-                      <button disabled={i === slides.length - 1} onClick={(e) => { e.stopPropagation(); move(slide.id, 1); }}>↓</button>
+                      <button
+                        className="drag-handle"
+                        title="Drag to reorder"
+                        aria-label={`Drag to reorder ${slide.name}`}
+                        onClick={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => startDrag(e, slide.id, i)}
+                        onPointerMove={moveDrag}
+                        onPointerUp={endDrag}
+                        onPointerCancel={() => setDrag(null)}
+                      >
+                        ⠿
+                      </button>
                     </>
                   )}
                   {canEdit(slide) && (

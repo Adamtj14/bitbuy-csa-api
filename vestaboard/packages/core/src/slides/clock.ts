@@ -259,6 +259,8 @@ function renderWordClock(parts: TimeParts, model: BoardModel): Grid {
 export interface ClockRenderOptions {
   /** Chip color for the big-digital style. */
   color?: ColorName;
+  /** Board-level zone used when the slide has none of its own. */
+  defaultTimeZone?: string;
 }
 
 export function renderClock(
@@ -267,7 +269,7 @@ export function renderClock(
   options: ClockRenderOptions = {},
   model: BoardModel = 'flagship',
 ): Grid {
-  const parts = getTimeParts(now, config.timeZone);
+  const parts = getTimeParts(now, config.timeZone ?? options.defaultTimeZone);
   const hour12 = config.hour12 ?? true;
   switch (config.style) {
     case 'big-digital':

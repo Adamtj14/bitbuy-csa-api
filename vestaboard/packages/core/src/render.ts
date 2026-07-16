@@ -19,7 +19,7 @@ export function render(config: SlideTypeConfig, ctx: RenderContext): Grid {
   const model = ctx.model ?? 'flagship';
   switch (config.type) {
     case 'clock':
-      return renderClock(config, ctx.now, {}, model);
+      return renderClock(config, ctx.now, { defaultTimeZone: ctx.timeZone }, model);
     case 'worldclock':
       return renderWorldClock(config, ctx.now, model);
     case 'ticker':

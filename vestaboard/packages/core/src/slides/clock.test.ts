@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { toAscii } from '../grid.js';
+import { render } from '../render.js';
 import { renderClock } from './clock.js';
 
 // 2026-07-10 14:35 UTC
@@ -153,5 +154,25 @@ describe('pixel clocks (colour chips as pixels)', () => {
     const c = renderClock({ type: 'clock', style: 'pixel', ...base }, at('2026-07-10T10:31:00Z'));
     expect(a).toEqual(b);
     expect(a).not.toEqual(c);
+  });
+});
+
+describe('time zone fallback', () => {
+  const noon = at('2026-07-10T16:00:00Z'); // 12:00 in Toronto (EDT)
+
+  it('a blank slide zone falls back to the board zone from the context', () => {
+    const grid = render(
+      { type: 'clock', style: 'digital-date' },
+      { now: noon, timeZone: 'America/Toronto' },
+    );
+    expect(toAscii(grid)).toContain('12:00 PM');
+  });
+
+  it("the slide's own zone beats the board zone", () => {
+    const grid = render(
+      { type: 'clock', style: 'digital-date', timeZone: 'UTC' },
+      { now: noon, timeZone: 'America/Toronto' },
+    );
+    expect(toAscii(grid)).toContain('4:00 PM');
   });
 });

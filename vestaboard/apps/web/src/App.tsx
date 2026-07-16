@@ -85,6 +85,9 @@ function usePreviewContext(config: BoardConfig | null, now: Date): RenderContext
   return {
     now,
     model,
+    // Match the server: blank clock slides use the board zone. (In the
+    // browser a missing zone falls back to the viewer's own clock.)
+    timeZone: config?.timeZone,
     quotes,
     weather: MOCK_WEATHER,
     weatherByLocation,
@@ -589,9 +592,9 @@ export default function App() {
                   />
                 </label>
                 <label className="field">
-                  <span>Time zone (IANA)</span>
+                  <span>Time zone (IANA) — clocks, sleep hours &amp; schedules</span>
                   <input
-                    placeholder="America/Toronto"
+                    placeholder="e.g. America/Toronto"
                     value={config.timeZone ?? ''}
                     onChange={(e) =>
                       adminUpdate((c) => ({ ...c, timeZone: e.target.value || undefined }))

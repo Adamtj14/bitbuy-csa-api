@@ -138,7 +138,8 @@ export class BoardPusher {
     const nowMs = now.getTime();
     const quoteTtl = this.options.quoteTtlSeconds ?? 60;
     const feedTtl = this.options.feedTtlSeconds ?? 300;
-    const ctx: RenderContext = { now };
+    // Board zone so blank clock slides show wall time, not server UTC.
+    const ctx: RenderContext = { now, timeZone: this.deps.getConfig().timeZone };
     const config = slide.config;
     const { sources, log } = this.deps;
 

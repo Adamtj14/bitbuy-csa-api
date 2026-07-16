@@ -148,9 +148,9 @@ function ClockEditor({
         </select>
       </label>
       <label className="field">
-        <span>Time zone (IANA)</span>
+        <span>Time zone (IANA — blank = the board's time zone)</span>
         <input
-          placeholder="America/Toronto"
+          placeholder="blank = board time zone (☰ menu)"
           value={config.timeZone ?? ''}
           onChange={(e) => onChange({ ...config, timeZone: e.target.value || undefined })}
         />

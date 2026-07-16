@@ -243,6 +243,12 @@ export interface RenderContext {
   now: Date;
   /** Board model to render for. Default 'flagship'. */
   model?: BoardModel;
+  /**
+   * Board-level IANA time zone, used by clock slides without their own.
+   * Without it a blank clock slide renders in the runtime's zone — which
+   * on a server is usually UTC, not what's on the wall.
+   */
+  timeZone?: string;
   quotes?: Quote[];
   weather?: WeatherData;
   /** Weather per location, keyed "lat,long" — for the multi-weather slide. */

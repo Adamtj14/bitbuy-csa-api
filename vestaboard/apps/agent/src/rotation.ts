@@ -122,6 +122,8 @@ export class RotationEngine {
 
     const ctx = await this.deps.getContext(slide, now, slides);
     ctx.model = this.config?.boardModel ?? 'flagship';
+    // Board zone so blank clock slides show wall time, not the host's zone.
+    ctx.timeZone ??= this.config?.timeZone;
     const grid = render(slide.config, ctx);
     await this.pushIfChanged(grid, slide.name, slide.transition);
 

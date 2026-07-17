@@ -33,6 +33,7 @@ import { SettingsPanel } from './components/SettingsPanel.js';
 import { ScheduleEditor } from './components/ScheduleEditor.js';
 import { ComposeBar, COMPOSE_SLIDE_ID } from './components/ComposeBar.js';
 import { PauseControl } from './components/PauseControl.js';
+import { TimeZonePicker } from './components/TimeZonePicker.js';
 import { clampFrequency, exportConfig, newSlide, sampleGrid } from './state.js';
 
 const mockProvider = new MockProvider();
@@ -592,13 +593,11 @@ export default function App() {
                   />
                 </label>
                 <label className="field">
-                  <span>Time zone (IANA) — clocks, sleep hours &amp; schedules</span>
-                  <input
-                    placeholder="e.g. America/Toronto"
-                    value={config.timeZone ?? ''}
-                    onChange={(e) =>
-                      adminUpdate((c) => ({ ...c, timeZone: e.target.value || undefined }))
-                    }
+                  <span>Time zone — clocks, sleep hours &amp; schedules</span>
+                  <TimeZonePicker
+                    value={config.timeZone}
+                    blankLabel="— pick your time zone —"
+                    onChange={(timeZone) => adminUpdate((c) => ({ ...c, timeZone }))}
                   />
                 </label>
                 <span className="field-label">Sleep hours</span>

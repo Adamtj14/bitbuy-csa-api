@@ -18,6 +18,7 @@ import {
 import { PainterCanvas } from './PainterCanvas.js';
 import { TransitionDemo } from './TransitionDemo.js';
 import { ScheduleEditor } from './ScheduleEditor.js';
+import { TimeZonePicker } from './TimeZonePicker.js';
 
 const TRANSITIONS: Array<TransitionStrategy | ''> = [
   '', 'column', 'reverse-column', 'edges-to-center', 'row', 'diagonal', 'random',
@@ -148,11 +149,11 @@ function ClockEditor({
         </select>
       </label>
       <label className="field">
-        <span>Time zone (IANA — blank = the board's time zone)</span>
-        <input
-          placeholder="blank = board time zone (☰ menu)"
-          value={config.timeZone ?? ''}
-          onChange={(e) => onChange({ ...config, timeZone: e.target.value || undefined })}
+        <span>Time zone</span>
+        <TimeZonePicker
+          value={config.timeZone}
+          blankLabel="Board time zone (☰ menu)"
+          onChange={(timeZone) => onChange({ ...config, timeZone })}
         />
       </label>
       {config.style !== 'word' && (
@@ -481,12 +482,13 @@ function WorldClockEditor({
             className="w-sm"
             onChange={(e) => setZone(i, { label: e.target.value.toUpperCase() })}
           />
-          <input
-            placeholder="America/Toronto"
-            value={zone.timeZone}
-            className="grow"
-            onChange={(e) => setZone(i, { timeZone: e.target.value })}
-          />
+          <span className="grow">
+            <TimeZonePicker
+              value={zone.timeZone || undefined}
+              blankLabel="— pick a time zone —"
+              onChange={(timeZone) => setZone(i, { timeZone: timeZone ?? 'UTC' })}
+            />
+          </span>
           <button
             disabled={config.zones.length === 1}
             onClick={() => onChange({ ...config, zones: config.zones.filter((_, j) => j !== i) })}

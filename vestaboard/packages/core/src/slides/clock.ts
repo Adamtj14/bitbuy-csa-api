@@ -1,6 +1,7 @@
 import { COLOR, ColorName } from '../chars.js';
 import { blankGrid, BoardModel, dimsOf, Grid } from '../grid.js';
 import { encodeLine, layoutText, writeAt } from '../text.js';
+import { safeTimeZone } from '../tz.js';
 import type { ClockSlideConfig } from '../types.js';
 
 interface TimeParts {
@@ -50,7 +51,7 @@ export function formatZoneTime(
   timeZone: string | undefined,
   hour12: boolean,
 ): string {
-  const parts = getTimeParts(date, timeZone);
+  const parts = getTimeParts(date, safeTimeZone(timeZone));
   return formatTime(parts.hour24, parts.minute, hour12);
 }
 
@@ -269,7 +270,9 @@ export function renderClock(
   options: ClockRenderOptions = {},
   model: BoardModel = 'flagship',
 ): Grid {
-  const parts = getTimeParts(now, config.timeZone ?? options.defaultTimeZone);
+  // Half-typed zones skip to the next in the chain instead of throwing.
+  const zone = safeTimeZone(config.timeZone) ?? safeTimeZone(options.defaultTimeZone);
+  const parts = getTimeParts(now, zone);
   const hour12 = config.hour12 ?? true;
   switch (config.style) {
     case 'big-digital':

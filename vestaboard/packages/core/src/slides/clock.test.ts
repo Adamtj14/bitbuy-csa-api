@@ -176,3 +176,33 @@ describe('time zone fallback', () => {
     expect(toAscii(grid)).toContain('4:00 PM');
   });
 });
+
+describe('half-typed / invalid time zones never throw', () => {
+  const noon = at('2026-07-10T16:00:00Z');
+
+  it('an invalid slide zone falls back to the board zone', () => {
+    const grid = render(
+      { type: 'clock', style: 'digital-date', timeZone: 'Amer' },
+      { now: noon, timeZone: 'America/Toronto' },
+    );
+    expect(toAscii(grid)).toContain('12:00 PM');
+  });
+
+  it('invalid slide AND board zones still render (runtime zone)', () => {
+    expect(() =>
+      render(
+        { type: 'clock', style: 'digital-date', timeZone: 'A' },
+        { now: noon, timeZone: 'Amer' },
+      ),
+    ).not.toThrow();
+  });
+
+  it('world-clock zones tolerate a half-typed value', () => {
+    expect(() =>
+      render(
+        { type: 'worldclock', zones: [{ label: 'X', timeZone: 'Euro' }] },
+        { now: noon },
+      ),
+    ).not.toThrow();
+  });
+});

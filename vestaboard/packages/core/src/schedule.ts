@@ -1,3 +1,4 @@
+import { safeTimeZone } from './tz.js';
 import type { BoardConfig, DaySchedule, Slide } from './types.js';
 
 const WEEKDAY_INDEX: Record<string, number> = {
@@ -19,7 +20,7 @@ interface ZonedParts {
 
 function partsInZone(now: Date, timeZone?: string): ZonedParts {
   const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone,
+    timeZone: safeTimeZone(timeZone),
     hour: 'numeric',
     minute: 'numeric',
     weekday: 'short',

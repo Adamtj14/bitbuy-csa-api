@@ -102,3 +102,11 @@ describe('rotationSequence', () => {
     expect(rotationSequence(active).map((x) => x.id)).toEqual(['1', '2', '3']);
   });
 });
+
+describe('invalid time zones', () => {
+  it('isActive tolerates a half-typed board zone', () => {
+    expect(() =>
+      isActive({ start: '09:00', end: '17:00' }, new Date(), 'Amer'),
+    ).not.toThrow();
+  });
+});

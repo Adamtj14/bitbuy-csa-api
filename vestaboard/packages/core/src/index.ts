@@ -6,6 +6,7 @@ export * from './render.js';
 export * from './schema.js';
 export * from './transitions.js';
 export * from './schedule.js';
+export * from './tz.js';
 export * from './patterns.js';
 export * from './slides/clock.js';
 export * from './slides/worldclock.js';

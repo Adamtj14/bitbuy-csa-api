@@ -589,6 +589,24 @@ button.primary:hover:not(:disabled) {
   gap: 10px;
 }
 
+/* Time zone dropdown + its live "now …" proof. */
+.tz-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tz-picker select {
+  max-width: 100%;
+}
+
+.tz-now {
+  font-size: 12px;
+  color: #8fd18f;
+  white-space: nowrap;
+}
+
 .settings-subhead {
   margin: 18px 0 6px;
   font-size: 13px;

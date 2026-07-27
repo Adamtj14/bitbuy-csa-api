@@ -1,0 +1,35 @@
+# App service, routed by the shared Traefik and served over HTTPS.
+#
+# The __PLACEHOLDERS__ are filled in by `platform/bin/new-project`. If you write
+# this file by hand, replace them:
+#   __NAME__       service / container name (repo name)
+#   __SUBDOMAIN__  subdomain to serve from
+#   __DOMAIN__     apex domain (e.g. ccml.cloud)
+#   __PORT__       port your app listens on inside the container
+
+services:
+  __NAME__:
+    build: .
+    restart: unless-stopped
+    # Published on localhost only; public traffic arrives via Traefik on 443.
+    ports:
+      - '127.0.0.1:__PORT__:__PORT__'
+    env_file:
+      - .env
+    networks:
+      - default
+      - web
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=web
+      - traefik.http.routers.__NAME__.rule=Host(`__SUBDOMAIN__.__DOMAIN__`)
+      - traefik.http.routers.__NAME__.entrypoints=websecure
+      - traefik.http.routers.__NAME__.tls=true
+      - traefik.http.routers.__NAME__.tls.certresolver=mytlschallenge
+      - traefik.http.services.__NAME__.loadbalancer.server.port=__PORT__
+
+networks:
+  # Shared Traefik network, created once by the VPS bootstrap.
+  web:
+    external: true
+  default: {}

@@ -1,0 +1,194 @@
+# Reusable deploy workflow: ensure DNS, then deploy a container behind Traefik.
+#
+# This is the single source of truth for deployment. Each project repo has a
+# tiny caller workflow (see deploy.caller.example.yml) that invokes this one.
+# It generalizes the bespoke vestaboard workflows (deploy-vestaboard.yml +
+# hostinger-dns.yml) into something any project can reuse.
+#
+# What it does, in order:
+#   1. Upsert an A record  <subdomain>.<domain> -> VPS IP  via the Hostinger API
+#      (idempotent). This is what makes HTTPS "just work": once DNS points at
+#      the VPS, Traefik completes the ACME challenge on first request.
+#   2. SSH to the VPS, clone/pull the repo into ~/apps/<app_dir>, and run
+#      `docker compose up -d --build`. Traefik then routes the subdomain.
+#
+# Call it from a project like:
+#
+#   jobs:
+#     deploy:
+#       uses: Adamtj14/platform/.github/workflows/deploy.reusable.yml@main
+#       with:
+#         subdomain: demo
+#         domain: ccml.cloud
+#       secrets: inherit
+
+name: Deploy (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      subdomain:
+        description: Subdomain to serve the app from (the part before the domain)
+        required: true
+        type: string
+      domain:
+        description: Hostinger-managed apex domain (e.g. ccml.cloud)
+        required: false
+        default: ccml.cloud
+        type: string
+      app_dir:
+        description: Directory name under ~/apps on the VPS. Defaults to the repo name.
+        required: false
+        default: ''
+        type: string
+      compose_path:
+        description: Path to the compose file within the repo (relative to repo root)
+        required: false
+        default: docker-compose.yml
+        type: string
+      ref:
+        description: Branch or tag to deploy
+        required: false
+        default: main
+        type: string
+      health_path:
+        description: Path to probe over HTTP after deploy (on the container's published port)
+        required: false
+        default: /
+        type: string
+      dns_ttl:
+        description: TTL (seconds) for the DNS record
+        required: false
+        default: 3600
+        type: number
+    secrets:
+      VPS_HOST:
+        required: true
+      VPS_USER:
+        required: true
+      VPS_SSH_KEY:
+        required: true
+      VPS_PORT:
+        required: false
+      VPS_PUBLIC_IP:
+        description: IPv4 for the A record. Falls back to VPS_HOST when it is already an IP.
+        required: false
+      HOSTINGER_API_TOKEN:
+        required: true
+
+concurrency:
+  # Serialize deploys per app so two pushes don't fight over the same dir.
+  group: deploy-${{ inputs.subdomain }}.${{ inputs.domain }}
+  cancel-in-progress: false
+
+jobs:
+  ensure-dns:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upsert DNS A record
+        env:
+          TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
+          DOMAIN: ${{ inputs.domain }}
+          SUBDOMAIN: ${{ inputs.subdomain }}
+          TTL: ${{ inputs.dns_ttl }}
+          PUBLIC_IP: ${{ secrets.VPS_PUBLIC_IP }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::error::HOSTINGER_API_TOKEN secret is not set"; exit 1
+          fi
+
+          # Resolve the IPv4 for the A record: prefer VPS_PUBLIC_IP, else use
+          # VPS_HOST if it looks like an IPv4.
+          IP="${PUBLIC_IP:-}"
+          if [ -z "$IP" ]; then
+            if printf '%s' "$VPS_HOST" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; then
+              IP="$VPS_HOST"
+            else
+              echo "::error::No VPS_PUBLIC_IP set and VPS_HOST ('$VPS_HOST') is not an IPv4."
+              echo "::error::Set the VPS_PUBLIC_IP secret to the server's public IPv4."
+              exit 1
+            fi
+          fi
+
+          body=$(jq -n \
+            --arg name "$SUBDOMAIN" \
+            --arg content "$IP" \
+            --argjson ttl "$TTL" \
+            '{overwrite: true, zone: [ { name: $name, type: "A", ttl: $ttl, records: [ { content: $content } ] } ] }')
+          echo "Ensuring A record ${SUBDOMAIN}.${DOMAIN} -> ${IP} (ttl ${TTL})"
+
+          code=$(curl -sS -o resp.json -w '%{http_code}' \
+            -X PUT "https://developers.hostinger.com/api/dns/v1/zones/${DOMAIN}" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -d "$body")
+          echo "HTTP $code"; (jq . resp.json 2>/dev/null || cat resp.json)
+          if [ "$code" -ge 300 ]; then
+            echo "::error::Hostinger API returned HTTP $code"; exit 1
+          fi
+          echo "::notice::DNS ensured: ${SUBDOMAIN}.${DOMAIN} -> ${IP}"
+
+  deploy:
+    needs: ensure-dns
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          REPO: ${{ github.repository }}
+          REF: ${{ inputs.ref }}
+          APP_DIR_IN: ${{ inputs.app_dir }}
+          COMPOSE_PATH: ${{ inputs.compose_path }}
+          HEALTH_PATH: ${{ inputs.health_path }}
+          SERVER_URL: ${{ github.server_url }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          command_timeout: 20m
+          envs: REPO,REF,APP_DIR_IN,COMPOSE_PATH,HEALTH_PATH,SERVER_URL
+          script: |
+            set -euo pipefail
+
+            # App directory name: explicit input, else the repo's short name.
+            APP_NAME="${APP_DIR_IN:-${REPO##*/}}"
+            APP_DIR="$HOME/apps/$APP_NAME"
+            CLONE_URL="${SERVER_URL}/${REPO}.git"
+
+            mkdir -p "$HOME/apps"
+            if [ ! -d "$APP_DIR/.git" ]; then
+              echo "== cloning $REPO into $APP_DIR =="
+              git clone "$CLONE_URL" "$APP_DIR"
+            fi
+            cd "$APP_DIR"
+            echo "== fetching $REF =="
+            git fetch origin "$REF"
+            git checkout -B deploy "origin/$REF"
+
+            COMPOSE_DIR="$(dirname "$COMPOSE_PATH")"
+            COMPOSE_FILE="$(basename "$COMPOSE_PATH")"
+            cd "$COMPOSE_DIR"
+
+            if [ -f .env.example ] && [ ! -f .env ]; then
+              cp .env.example .env
+              echo "::warning::.env created from .env.example — fill in any required secrets on the VPS and re-run"
+            fi
+
+            echo "== docker compose up -d --build =="
+            docker compose -f "$COMPOSE_FILE" up -d --build
+            docker compose -f "$COMPOSE_FILE" ps
+
+            echo "== local health probe =="
+            # Probe the port the compose file publishes on 127.0.0.1, if any.
+            PORT="$(docker compose -f "$COMPOSE_FILE" ps --format '{{.Publishers}}' 2>/dev/null \
+              | grep -oE '127\.0\.0\.1:[0-9]+' | head -1 | cut -d: -f2 || true)"
+            if [ -n "${PORT:-}" ]; then
+              code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PORT}${HEALTH_PATH}" || echo "000")
+              echo "GET http://127.0.0.1:${PORT}${HEALTH_PATH} -> ${code}"
+            else
+              echo "No 127.0.0.1 published port detected; skipping local probe."
+            fi

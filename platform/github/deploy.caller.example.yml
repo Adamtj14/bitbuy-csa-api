@@ -1,0 +1,27 @@
+# Per-project deploy workflow. This is the ONLY CI file a project needs.
+# Copy it to .github/workflows/deploy.yml in the project (the template already
+# ships it) and adjust the `with:` values. All deploy logic lives in the
+# reusable workflow in the platform repo, so improvements there reach every
+# project without editing each repo.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or tag to deploy
+        required: false
+        default: main
+
+jobs:
+  deploy:
+    uses: Adamtj14/platform/.github/workflows/deploy.reusable.yml@main
+    with:
+      subdomain: __SUBDOMAIN__
+      domain: __DOMAIN__
+      # app_dir defaults to the repo name; compose_path defaults to docker-compose.yml
+      ref: ${{ github.event.inputs.ref || 'main' }}
+    secrets: inherit

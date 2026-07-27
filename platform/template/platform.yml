@@ -1,0 +1,7 @@
+# Project manifest. `new-project` writes this from your answers; it records how
+# the project is deployed so you (and future tooling) have a single reference.
+name: __NAME__
+subdomain: __SUBDOMAIN__
+domain: __DOMAIN__
+port: __PORT__          # port the container listens on
+visibility: __VISIBILITY__   # public | private

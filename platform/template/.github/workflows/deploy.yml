@@ -1,0 +1,23 @@
+# Per-project deploy. All logic lives in the platform repo's reusable workflow,
+# so this file rarely changes. Placeholders are filled by `new-project`.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or tag to deploy
+        required: false
+        default: main
+
+jobs:
+  deploy:
+    uses: Adamtj14/platform/.github/workflows/deploy.reusable.yml@main
+    with:
+      subdomain: __SUBDOMAIN__
+      domain: __DOMAIN__
+      ref: ${{ github.event.inputs.ref || 'main' }}
+    secrets: inherit

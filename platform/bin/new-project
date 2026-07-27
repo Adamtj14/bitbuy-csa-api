@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# Create a new deployable project from the platform template:
+#   - copy the template and fill in placeholders
+#   - create a GitHub repo (public or private) and push
+#   - set the deploy secrets on the repo
+# After this, pushing to main deploys to https://<subdomain>.<domain>.
+#
+# Requirements on your machine: git, and the GitHub CLI `gh` (authenticated:
+# run `gh auth login` once). `gh` is used to create the repo and set secrets.
+#
+# Usage:
+#   platform/bin/new-project NAME [options]
+#
+# Options:
+#   --subdomain SUB     Subdomain (default: NAME)
+#   --domain DOMAIN     Apex domain (default: ccml.cloud)
+#   --port PORT         Port the container listens on (default: 8080)
+#   --visibility V      public | private  (default: private)
+#   --owner OWNER       GitHub owner/org  (default: your gh account)
+#   --dir DIR           Where to create the project (default: ./NAME)
+#   --secrets FILE      Env file of deploy secrets to load into the repo
+#                       (default: ~/.config/platform/secrets.env if present)
+#   --no-push           Create locally only; skip repo creation and push
+#
+# The secrets file (see platform/bin/secrets.env.example) should define:
+#   VPS_HOST, VPS_USER, VPS_SSH_KEY, VPS_PORT, VPS_PUBLIC_IP, HOSTINGER_API_TOKEN
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLATFORM_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+TEMPLATE_DIR="$PLATFORM_DIR/template"
+
+die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
+log() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
+
+# --- args -----------------------------------------------------------------
+NAME="${1:-}"; [ -n "$NAME" ] && shift || die "project NAME is required"
+case "$NAME" in --*) die "project NAME is required (got option '$NAME')";; esac
+
+SUBDOMAIN="$NAME"
+DOMAIN="ccml.cloud"
+PORT="8080"
+VISIBILITY="private"
+OWNER=""
+DEST=""
+SECRETS_FILE="${HOME}/.config/platform/secrets.env"
+DO_PUSH=1
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --subdomain)  SUBDOMAIN="$2"; shift 2;;
+    --domain)     DOMAIN="$2"; shift 2;;
+    --port)       PORT="$2"; shift 2;;
+    --visibility) VISIBILITY="$2"; shift 2;;
+    --owner)      OWNER="$2"; shift 2;;
+    --dir)        DEST="$2"; shift 2;;
+    --secrets)    SECRETS_FILE="$2"; shift 2;;
+    --no-push)    DO_PUSH=0; shift;;
+    *) die "unknown option: $1";;
+  esac
+done
+
+case "$VISIBILITY" in public|private) ;; *) die "--visibility must be public or private";; esac
+DEST="${DEST:-$PWD/$NAME}"
+[ -e "$DEST" ] && die "destination already exists: $DEST"
+
+# --- scaffold -------------------------------------------------------------
+log "Scaffolding $NAME -> $DEST"
+mkdir -p "$DEST"
+# Copy template contents (including dotfiles) without the template dir itself.
+cp -R "$TEMPLATE_DIR/." "$DEST/"
+
+# Fill placeholders in every file.
+# Use a portable in-place sed (works on GNU and BSD).
+sed_inplace() {
+  if sed --version >/dev/null 2>&1; then sed -i "$@"; else sed -i '' "$@"; fi
+}
+find "$DEST" -type f -print0 | while IFS= read -r -d '' f; do
+  sed_inplace \
+    -e "s|__NAME__|${NAME}|g" \
+    -e "s|__SUBDOMAIN__|${SUBDOMAIN}|g" \
+    -e "s|__DOMAIN__|${DOMAIN}|g" \
+    -e "s|__PORT__|${PORT}|g" \
+    -e "s|__VISIBILITY__|${VISIBILITY}|g" \
+    "$f"
+done
+
+log "Initializing git repo"
+git -C "$DEST" init -q
+git -C "$DEST" add -A
+git -C "$DEST" commit -q -m "Initial commit: scaffold ${NAME} from platform template"
+git -C "$DEST" branch -M main
+
+if [ "$DO_PUSH" -eq 0 ]; then
+  log "Done (local only). To publish later, create a repo and push 'main'."
+  exit 0
+fi
+
+# --- GitHub repo + secrets -----------------------------------------------
+command -v gh >/dev/null 2>&1 || die "gh (GitHub CLI) not found. Install it or re-run with --no-push."
+
+REPO_ARG="$NAME"
+[ -n "$OWNER" ] && REPO_ARG="$OWNER/$NAME"
+
+log "Creating GitHub repo ($VISIBILITY) and pushing"
+gh repo create "$REPO_ARG" \
+  --"$VISIBILITY" \
+  --source "$DEST" \
+  --remote origin \
+  --push
+
+REPO_FULL="$(git -C "$DEST" remote get-url origin | sed -E 's#(git@github.com:|https://github.com/)##; s#\.git$##')"
+
+if [ -f "$SECRETS_FILE" ]; then
+  log "Setting deploy secrets from $SECRETS_FILE"
+  # Each non-comment KEY=VALUE line becomes a repo secret.
+  while IFS='=' read -r key val; do
+    case "$key" in ''|\#*) continue;; esac
+    val="${val%$'\r'}"
+    [ -z "$val" ] && { echo "  skip $key (empty)"; continue; }
+    printf '%s' "$val" | gh secret set "$key" --repo "$REPO_FULL" --body -
+    echo "  set $key"
+  done < "$SECRETS_FILE"
+else
+  cat <<EOF
+::warning:: No secrets file at $SECRETS_FILE — deploy will fail until you set:
+  VPS_HOST VPS_USER VPS_SSH_KEY VPS_PORT VPS_PUBLIC_IP HOSTINGER_API_TOKEN
+Set them with:  gh secret set VPS_HOST --repo $REPO_FULL
+Or create the secrets file (see platform/bin/secrets.env.example) and re-run
+the secrets step.
+EOF
+fi
+
+log "Done."
+echo "  Repo:   https://github.com/$REPO_FULL"
+echo "  URL:    https://${SUBDOMAIN}.${DOMAIN} (live after the first deploy finishes)"
+echo "  Deploy: pushing to main triggers it; or run the 'Deploy' workflow."

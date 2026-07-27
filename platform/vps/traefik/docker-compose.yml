@@ -1,0 +1,57 @@
+# Traefik v3 edge router with automatic Let's Encrypt HTTPS.
+#
+# This is the ONE piece of shared infrastructure on the VPS. Every app container
+# attaches to the external `web` network and advertises itself with Traefik
+# labels (see platform/template/docker-compose.yml); Traefik discovers it,
+# routes its subdomain, and provisions + renews a TLS cert automatically.
+#
+# The cert resolver is named `mytlschallenge` to match the labels already used
+# by the existing services on this VPS (vestaboard, n8n), so nothing has to be
+# relabelled. If you are bootstrapping a brand-new VPS you can keep this name.
+
+services:
+  traefik:
+    image: traefik:v3.3
+    restart: unless-stopped
+    command:
+      # --- providers ---
+      - --providers.docker=true
+      # Only expose containers that explicitly opt in with traefik.enable=true.
+      - --providers.docker.exposedbydefault=false
+      # Containers are discovered on the shared `web` network.
+      - --providers.docker.network=web
+
+      # --- entrypoints ---
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      # Redirect all plain HTTP to HTTPS.
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+
+      # --- ACME / Let's Encrypt (HTTP-01 challenge) ---
+      - --certificatesresolvers.mytlschallenge.acme.httpchallenge=true
+      - --certificatesresolvers.mytlschallenge.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.mytlschallenge.acme.email=${ACME_EMAIL:?set ACME_EMAIL in .env}
+      - --certificatesresolvers.mytlschallenge.acme.storage=/letsencrypt/acme.json
+
+      # --- misc ---
+      - --log.level=INFO
+      - --accesslog=true
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      # Read Docker events to discover app containers (read-only).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Persist issued certificates across restarts.
+      - letsencrypt:/letsencrypt
+    networks:
+      - web
+
+volumes:
+  letsencrypt:
+
+networks:
+  # Shared network that every app container joins. Created by bootstrap.sh.
+  web:
+    external: true

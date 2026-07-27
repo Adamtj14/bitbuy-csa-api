@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# Publish this platform/ toolkit as its own standalone GitHub repo
+# (default: Adamtj14/platform). Run this once. After that, project repos
+# reference the reusable workflow at:
+#   Adamtj14/platform/.github/workflows/deploy.reusable.yml@main
+#
+# It arranges the files into the layout the reusable-workflow reference needs:
+#   platform/github/deploy.reusable.yml  ->  .github/workflows/deploy.reusable.yml
+# and copies everything else (vps/, template/, bin/, README) verbatim.
+#
+# Requirements: git and gh (authenticated).
+#
+# Usage:
+#   platform/bin/publish-platform-repo [--repo OWNER/NAME] [--visibility private|public] [--no-push]
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLATFORM_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
+log() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
+
+REPO="Adamtj14/platform"
+VISIBILITY="private"
+DO_PUSH=1
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --repo)       REPO="$2"; shift 2;;
+    --visibility) VISIBILITY="$2"; shift 2;;
+    --no-push)    DO_PUSH=0; shift;;
+    *) die "unknown option: $1";;
+  esac
+done
+
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+
+log "Staging platform repo layout in $STAGE"
+# Copy the toolkit, excluding the caller example (that's per-project docs) is
+# fine to keep, but move the reusable workflow into .github/workflows.
+cp -R "$PLATFORM_DIR/vps" "$STAGE/vps"
+cp -R "$PLATFORM_DIR/template" "$STAGE/template"
+cp -R "$PLATFORM_DIR/bin" "$STAGE/bin"
+cp "$PLATFORM_DIR/README.md" "$STAGE/README.md" 2>/dev/null || true
+
+# The reusable workflow must live under .github/workflows to be callable.
+mkdir -p "$STAGE/.github/workflows"
+cp "$PLATFORM_DIR/github/deploy.reusable.yml" "$STAGE/.github/workflows/deploy.reusable.yml"
+# Keep the caller example as documentation.
+mkdir -p "$STAGE/github"
+cp "$PLATFORM_DIR/github/deploy.caller.example.yml" "$STAGE/github/deploy.caller.example.yml"
+
+log "Initializing git"
+git -C "$STAGE" init -q
+git -C "$STAGE" add -A
+git -C "$STAGE" commit -q -m "Platform toolkit: VPS bootstrap, reusable deploy, project template, generator"
+git -C "$STAGE" branch -M main
+
+if [ "$DO_PUSH" -eq 0 ]; then
+  log "Staged at $STAGE (not pushed). Inspect it, then push manually."
+  trap - EXIT
+  exit 0
+fi
+
+command -v gh >/dev/null 2>&1 || die "gh (GitHub CLI) not found. Install it or re-run with --no-push."
+log "Creating $REPO ($VISIBILITY) and pushing"
+gh repo create "$REPO" --"$VISIBILITY" --source "$STAGE" --remote origin --push
+
+log "Published: https://github.com/$REPO"
+echo "Project repos can now use:"
+echo "  uses: $REPO/.github/workflows/deploy.reusable.yml@main"

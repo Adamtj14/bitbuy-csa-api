@@ -1,0 +1,12 @@
+# Your real, tenant-specific config (may contain seat/building ids)
+config.json
+
+# Persistent logged-in browser profile — THIS IS YOUR SESSION. Never commit it.
+.session/
+
+# Discovery + debugging artifacts
+capture/
+screenshots/
+
+node_modules/
+*.log

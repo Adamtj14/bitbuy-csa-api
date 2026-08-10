@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  macOS launchd job: run the booker every weekday morning.
+
+  launchd (unlike cron) will run a missed job when the laptop wakes back up,
+  which pairs perfectly with the self-healing "sweep the whole window" logic.
+
+  SETUP:
+    1. Edit the two /ABSOLUTE/PATH placeholders below.
+    2. cp scheduling/com.spaceiq.booker.plist ~/Library/LaunchAgents/
+    3. launchctl load ~/Library/LaunchAgents/com.spaceiq.booker.plist
+    4. To stop:  launchctl unload ~/Library/LaunchAgents/com.spaceiq.booker.plist
+
+  Runs at 08:05 Mon–Fri. Change Hour/Minute as you like.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.spaceiq.booker</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/node</string>
+    <string>/ABSOLUTE/PATH/TO/spaceiq-booker/src/index.js</string>
+    <string>book</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/ABSOLUTE/PATH/TO/spaceiq-booker</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- Silent background run; flip to 1 to watch the window. -->
+    <key>SPACEIQ_HEADED</key>
+    <string>0</string>
+  </dict>
+
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>5</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>5</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>5</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>5</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>5</integer></dict>
+  </array>
+
+  <key>StandardOutPath</key>
+  <string>/ABSOLUTE/PATH/TO/spaceiq-booker/booker.log</string>
+  <key>StandardErrorPath</key>
+  <string>/ABSOLUTE/PATH/TO/spaceiq-booker/booker.log</string>
+</dict>
+</plist>

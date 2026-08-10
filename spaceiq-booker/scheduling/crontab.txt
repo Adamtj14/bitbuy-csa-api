@@ -1,0 +1,9 @@
+# Linux / macOS cron: run the booker at 08:05 every weekday (Mon–Fri).
+#
+# NOTE: plain cron does NOT run missed jobs after sleep/off. On a laptop that
+# suspends, prefer the launchd plist (macOS) or `anacron`/systemd timers with
+# Persistent=true (Linux). The daily self-healing sweep still covers the rest.
+#
+# Install with:  crontab -e   (then paste the line, fixing the two paths)
+
+5 8 * * 1-5  cd /ABSOLUTE/PATH/TO/spaceiq-booker && SPACEIQ_HEADED=0 /usr/local/bin/node src/index.js book >> booker.log 2>&1

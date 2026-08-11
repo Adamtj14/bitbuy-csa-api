@@ -1,0 +1,23 @@
+{
+  "name": "spaceiq-booker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Automatically books a specific SpaceIQ seat on recurring weekdays, reusing a manually-authenticated SSO session.",
+  "bin": {
+    "spaceiq-booker": "src/index.js"
+  },
+  "scripts": {
+    "login": "node src/index.js login",
+    "discover": "node src/index.js discover",
+    "book": "node src/index.js book",
+    "status": "node src/index.js status",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

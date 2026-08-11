@@ -1,0 +1,23 @@
+{
+  "baseUrl": "https://app.spaceiq.com",
+  "horizonDays": 14,
+  "weekdays": ["Tue", "Thu"],
+
+  "seatId": "",
+  "seatLabel": "e.g. Desk 4-118 (4th floor window)",
+  "buildingId": "",
+  "floorId": "",
+
+  "headed": true,
+  "dryRun": false,
+
+  "booking": {
+    "graphqlPath": "/graphql",
+    "authTokenStorageKey": "",
+    "mutation": "mutation BookDesk($deskId: ID!, $date: String!) { createReservation(input: { deskId: $deskId, date: $date }) { id } }",
+    "variables": {
+      "deskId": "{{seatId}}",
+      "date": "{{date}}"
+    }
+  }
+}

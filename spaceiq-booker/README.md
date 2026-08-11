@@ -106,8 +106,11 @@ npm run book                   # the real thing
 
 Pick your OS — files are in `scheduling/`:
 
-- **macOS**: `com.spaceiq.booker.plist` (launchd — re-runs after the laptop
-  wakes, best for a laptop).
+- **macOS (easiest)**: `bash scheduling/install-macos.sh` — fills in the right
+  paths for your machine and turns on the schedule in one command. Undo with
+  `bash scheduling/install-macos.sh --uninstall`.
+- **macOS (manual)**: `com.spaceiq.booker.plist` (launchd — re-runs after the
+  laptop wakes, best for a laptop).
 - **Linux / macOS**: `crontab.txt`.
 - **Windows**: `windows-task.md` (Task Scheduler, with wake-to-run).
 

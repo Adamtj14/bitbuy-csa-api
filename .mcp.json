@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "jev": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@jkudish/jev-mcp@0.9"
+      ]
+    }
+  }
+}
